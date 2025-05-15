@@ -6,6 +6,8 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo; // Para relaciones "pertenece a"
 use Illuminate\Database\Eloquent\Relations\HasMany;   // Para relaciones "tiene muchos"
+// Asegúrate que Carbon está importado si no lo está globalmente.
+// use Carbon\Carbon;
 
 class Quote extends Model
 {
@@ -26,7 +28,7 @@ class Quote extends Model
         'total',
         'terms_and_conditions',
         'notes_to_client',
-        'internal_notes',
+        'internal_notes', // Añadido según tu controlador
         'status',
         'base_currency',
         'exchange_rate_bcv',
@@ -88,6 +90,47 @@ class Quote extends Model
      */
     public function history(): HasMany
     {
-        return $this->hasMany(QuoteHistory::class);
+        // Ordenar por el más reciente por defecto si es útil
+        return $this->hasMany(QuoteHistory::class)->orderBy('created_at', 'desc');
     }
+
+    // --- INICIO ACCESORS PARA ESTADO ---
+    /**
+     * Obtener el texto legible del estado de la cotización.
+     *
+     * @return string
+     */
+    public function getStatusTextAttribute(): string
+    {
+        $statuses = [
+            'Borrador' => 'Borrador',
+            'Enviada' => 'Enviada',
+            'Aceptada' => 'Aceptada',
+            'Rechazada' => 'Rechazada',
+            'Expirada' => 'Expirada',
+            'Cancelada' => 'Cancelada',
+            // Puedes añadir otros estados si los manejas
+        ];
+        return $statuses[$this->status] ?? ucfirst($this->status);
+    }
+
+    /**
+     * Obtener la clase CSS para el badge del estado.
+     *
+     * @return string
+     */
+    public function getStatusClassAttribute(): string
+    {
+        $baseClass = 'badge ';
+        $statusClasses = [
+            'Borrador' => 'badge-secondary',
+            'Enviada' => 'badge-info',
+            'Aceptada' => 'badge-success',
+            'Rechazada' => 'badge-danger',
+            'Expirada' => 'badge-warning',
+            'Cancelada' => 'badge-dark', // o badge-danger también
+        ];
+        return $baseClass . ($statusClasses[$this->status] ?? 'badge-light');
+    }
+    // --- FIN ACCESORS PARA ESTADO ---
 }

@@ -3,16 +3,24 @@
 @section('title', 'Gestión de Cotizaciones')
 
 @section('content_header')
-    <h1 class="m-0 text-dark">Listado de Cotizaciones</h1>
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h1 class="m-0 text-dark">Listado de Cotizaciones</h1>
+        {{-- El permiso can('create_quotes') es un ejemplo, ajusta según tu sistema de permisos si usas uno --}}
+        @can('create_quotes') 
+            <a href="{{ route('quotes.create') }}" class="btn btn-primary">
+                <i class="fas fa-file-medical"></i> Crear Nueva Cotización
+            </a>
+        @else
+             {{-- Si no tienes sistema de permisos aún, puedes mostrar el botón directamente --}}
+             <a href="{{ route('quotes.create') }}" class="btn btn-primary">
+                <i class="fas fa-file-medical"></i> Crear Nueva Cotización
+            </a>
+        @endcan
+    </div>
 @stop
 
 @section('content')
     <div class="card">
-        <div class="card-header">
-            <a href="{{ route('quotes.create') }}" class="btn btn-primary">
-                <i class="fas fa-file-medical"></i> Crear Nueva Cotización
-            </a>
-        </div>
         <div class="card-body">
             @if(session('success'))
                 <div class="alert alert-success alert-dismissible fade show" role="alert">
@@ -48,41 +56,93 @@
                             <th>Vendedor</th>
                             <th>Fecha Emisión</th>
                             <th>Fecha Validez</th>
-                            <th>Total</th>
-                            <th>Estado</th>
-                            <th>Acciones</th>
+                            <th class="text-right">Total</th>
+                            <th class="text-center">Estado</th>
+                            <th class="text-center" style="width: 20%;">Acciones</th> {{-- Ajustar ancho si es necesario --}}
                         </tr>
                     </thead>
                     <tbody>
                         @forelse ($quotes as $quote)
                             <tr>
                                 <td>
-                                    <a href="{{ route('quotes.show', $quote->id) }}" title="Ver Detalles">{{ $quote->quote_number }}</a>
+                                    <a href="{{ route('quotes.show', $quote) }}" title="Ver Detalles">{{ $quote->quote_number }}</a>
                                 </td>
                                 <td>{{ $quote->client->name ?? 'N/A' }}</td>
                                 <td>{{ $quote->user->name ?? 'N/A' }}</td>
                                 <td>{{ $quote->issue_date->format('d/m/Y') }}</td>
                                 <td>{{ $quote->expiry_date->format('d/m/Y') }}</td>
-                                <td>{{ number_format($quote->total, 2, ',', '.') }} {{ $quote->base_currency }}</td>
-                                <td>
-                                    <span class="badge @if($quote->status == 'Aceptada') badge-success @elseif($quote->status == 'Enviada') badge-info @elseif($quote->status == 'Borrador') badge-secondary @elseif($quote->status == 'Rechazada' || $quote->status == 'Cancelada') badge-danger @else badge-warning @endif">
-                                        {{ $quote->status }}
-                                    </span>
+                                <td class="text-right">{{ number_format($quote->total, 2, ',', '.') }} {{ $quote->base_currency }}</td>
+                                <td class="text-center">
+                                    <span class="badge {{ $quote->status_class }}">{{ $quote->status_text }}</span>
                                 </td>
-                                <td>
-                                    <a href="{{ route('quotes.show', $quote->id) }}" class="btn btn-sm btn-info" title="Ver Detalles">
+                                <td class="text-center">
+                                    {{-- Botón Ver --}}
+                                    <a href="{{ route('quotes.show', $quote) }}" class="btn btn-sm btn-info" title="Ver Detalles">
                                         <i class="fas fa-eye"></i>
                                     </a>
-                                    <a href="{{ route('quotes.edit', $quote->id) }}" class="btn btn-sm btn-warning" title="Editar">
+
+                                    {{-- Botón Editar (con permiso de ejemplo) --}}
+                                    @can('edit_quotes')
+                                    <a href="{{ route('quotes.edit', $quote) }}" class="btn btn-sm btn-warning" title="Editar">
                                         <i class="fas fa-edit"></i>
                                     </a>
-                                    <form action="{{ route('quotes.destroy', $quote->id) }}" method="POST" style="display:inline;">
+                                    @elsecan('edit_own_quotes') {{-- Ejemplo de otro permiso: editar solo las propias --}}
+                                        @if(Auth::id() == $quote->user_id)
+                                        <a href="{{ route('quotes.edit', $quote) }}" class="btn btn-sm btn-warning" title="Editar">
+                                            <i class="fas fa-edit"></i>
+                                        </a>
+                                        @endif
+                                    @else {{-- Si no hay sistema de permisos, mostrar siempre --}}
+                                    <a href="{{ route('quotes.edit', $quote) }}" class="btn btn-sm btn-warning" title="Editar">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                    @endcan
+                                    
+                                    {{-- Formulario para Duplicar (con permiso de ejemplo) --}}
+                                    @can('duplicate_quotes')
+                                    <form action="{{ route('quotes.duplicate', $quote) }}" method="POST" style="display: inline;" class="ml-1">
                                         @csrf
-                                        @method('DELETE') {{-- Esencial para la eliminación --}}
-                                        <button type="submit" class="btn btn-sm btn-danger" title="Eliminar" onclick="return confirm('¿Está seguro de que desea eliminar esta cotización? ESTA ACCIÓN TAMBIÉN ELIMINARÁ SUS ÍTEMS ASOCIADOS.')">
+                                        <button type="submit" class="btn btn-sm btn-secondary" title="Duplicar Cotización" onclick="return confirm('¿Está seguro de que desea duplicar esta cotización #{{ $quote->quote_number }}? Se creará una nueva cotización editable.')">
+                                            <i class="fas fa-copy"></i>
+                                        </button>
+                                    </form>
+                                    @else {{-- Si no hay sistema de permisos, mostrar siempre --}}
+                                    <form action="{{ route('quotes.duplicate', $quote) }}" method="POST" style="display: inline;" class="ml-1">
+                                        @csrf
+                                        <button type="submit" class="btn btn-sm btn-secondary" title="Duplicar Cotización" onclick="return confirm('¿Está seguro de que desea duplicar esta cotización #{{ $quote->quote_number }}? Se creará una nueva cotización editable.')">
+                                            <i class="fas fa-copy"></i>
+                                        </button>
+                                    </form>
+                                    @endcan
+
+                                    {{-- Formulario para Eliminar (con permiso de ejemplo) --}}
+                                    @can('delete_quotes')
+                                    <form action="{{ route('quotes.destroy', $quote) }}" method="POST" style="display:inline;" class="ml-1">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button type="submit" class="btn btn-sm btn-danger" title="Eliminar" onclick="return confirm('¿Está seguro de que desea eliminar esta cotización #{{ $quote->quote_number }}? Esta acción no se puede deshacer.')">
                                             <i class="fas fa-trash-alt"></i>
                                         </button>
                                     </form>
+                                    @elsecan('delete_own_quotes') {{-- Ejemplo de otro permiso: eliminar solo las propias (con cuidado) --}}
+                                        @if(Auth::id() == $quote->user_id && $quote->status == 'Borrador') {{-- Ejemplo: solo borrar borradores propios --}}
+                                        <form action="{{ route('quotes.destroy', $quote) }}" method="POST" style="display:inline;" class="ml-1">
+                                            @csrf
+                                            @method('DELETE')
+                                            <button type="submit" class="btn btn-sm btn-danger" title="Eliminar" onclick="return confirm('¿Está seguro de que desea eliminar esta cotización #{{ $quote->quote_number }}? Esta acción no se puede deshacer.')">
+                                                <i class="fas fa-trash-alt"></i>
+                                            </button>
+                                        </form>
+                                        @endif
+                                    @else {{-- Si no hay sistema de permisos, mostrar siempre --}}
+                                    <form action="{{ route('quotes.destroy', $quote) }}" method="POST" style="display:inline;" class="ml-1">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button type="submit" class="btn btn-sm btn-danger" title="Eliminar" onclick="return confirm('¿Está seguro de que desea eliminar esta cotización #{{ $quote->quote_number }}? Esta acción no se puede deshacer.')">
+                                            <i class="fas fa-trash-alt"></i>
+                                        </button>
+                                    </form>
+                                    @endcan
                                 </td>
                             </tr>
                         @empty
@@ -94,18 +154,21 @@
                 </table>
             </div>
         </div>
-        <div class="card-footer clearfix">
-            {{ $quotes->links() }}
-        </div>
+        @if ($quotes->hasPages())
+            <div class="card-footer clearfix">
+                {{ $quotes->links() }}
+            </div>
+        @endif
     </div>
 @stop
 
 @section('js')
     <script>
+        // Script para que los mensajes flash desaparezcan automáticamente
         window.setTimeout(function() {
             $(".alert").fadeTo(500, 0).slideUp(500, function(){
                 $(this).remove();
             });
-        }, 4000);
+        }, 7000);
     </script>
 @stop

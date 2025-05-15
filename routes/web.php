@@ -42,6 +42,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Gestión de Cotizaciones
     Route::resource('quotes', QuoteController::class);
 
+    Route::resource('quotes', QuoteController::class);
+    Route::get('quotes/{quote}/download-pdf', [QuoteController::class, 'downloadPDF'])->name('quotes.downloadPdf'); // NUEVA RUTA
+    Route::post('quotes/{quote}/duplicate', [QuoteController::class, 'duplicate'])->name('quotes.duplicate');
+
+    Route::post('quotes/{quote}/autosave', [QuoteController::class, 'autosave'])->name('quotes.autosave');
+
     // Ruta para buscar productos (COMENTADA TEMPORALMENTE si no la usamos ahora)
     // Route::get('/quotes/search-products', [App\Http\Controllers\Admin\QuoteController::class, 'searchProducts'])->name('quotes.searchProducts');
 

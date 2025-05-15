@@ -1,31 +1,57 @@
 @extends('adminlte::page')
 
-@section('title', ($is_show_mode ?? false) ? ('Ver Cotización #' . $quote->quote_number) : ('Editar Cotización #' . $quote->quote_number))
+@section('title', 'Editar Cotización #' . $quote->quote_number)
 
 @section('content_header')
     <div class="d-flex justify-content-between align-items-center">
-        <h1 class="m-0 text-dark">{{ ($is_show_mode ?? false) ? 'Ver Cotización' : 'Editar Cotización' }} #{{ $quote->quote_number }}</h1>
+        <h1 class="m-0 text-dark">Editar Cotización #{{ $quote->quote_number }}</h1>
         <a href="{{ route('quotes.index') }}" class="btn btn-secondary btn-sm"><i class="fas fa-arrow-left"></i> Volver a la Lista</a>
     </div>
 @stop
 
 @section('content')
-    <div class="card {{ ($is_show_mode ?? false) ? 'card-info' : 'card-warning' }} card-outline">
+    {{-- Mostrar errores de validación generales o de sesión --}}
+    @if ($errors->any())
+        <div class="alert alert-danger alert-dismissible">
+            <button type="button" class="close" data-dismiss="alert" aria-hidden="true">×</button>
+            <h5><i class="icon fas fa-ban"></i> ¡Error de Validación!</h5>
+            <ul class="mb-0">
+                @foreach ($errors->all() as $error)
+                    <li>{{ $error }}</li>
+                @endforeach
+            </ul>
+        </div>
+    @endif
+    @if (session('error'))
+        <div class="alert alert-danger alert-dismissible">
+            <button type="button" class="close" data-dismiss="alert" aria-hidden="true">×</button>
+            <h5><i class="icon fas fa-ban"></i> ¡Error!</h5>
+            {{ session('error') }}
+        </div>
+    @endif
+    @if (session('success'))
+        <div class="alert alert-success alert-dismissible">
+            <button type="button" class="close" data-dismiss="alert" aria-hidden="true">×</button>
+            <h5><i class="icon fas fa-check"></i> ¡Éxito!</h5>
+            {{ session('success') }}
+        </div>
+    @endif
+
+
+    <div class="card card-warning card-outline">
         <div class="card-header">
             <h3 class="card-title">Información General y Cliente</h3>
         </div>
         <form action="{{ route('quotes.update', $quote->id) }}" method="POST" id="quoteForm">
-            @if(!($is_show_mode ?? false))
-                @method('PUT')
-            @endif
+            @method('PUT')
             @csrf
             <div class="card-body">
-                {{-- Fila para Cliente y Fechas --}}
+                {{-- Fila para Cliente, Estado y Fechas --}}
                 <div class="row">
                     <div class="col-md-4">
                         <div class="form-group">
                             <label for="client_id">Cliente <span class="text-danger">*</span></label>
-                            <select name="client_id" id="client_id" class="form-control @error('client_id') is-invalid @enderror" {{ ($is_show_mode ?? false) ? 'disabled' : '' }} required>
+                            <select name="client_id" id="client_id" class="form-control @error('client_id') is-invalid @enderror" required>
                                 <option value="">Seleccione un cliente...</option>
                                 @if(isset($clients) && $clients->count() > 0)
                                     @foreach($clients as $id => $name)
@@ -40,14 +66,14 @@
                     </div>
                     <div class="col-md-2">
                         <div class="form-group">
-                            <label for="status_display">Estado</label> {{-- Cambiado a status_display para evitar conflicto con un posible input de status --}}
-                            <input type="text" id="status_display" class="form-control" value="{{ $quote->status }}" readonly>
+                            <label>Estado Actual</label>
+                            <input type="text" class="form-control" value="{{ $quote->status_text }}" readonly> {{-- Usar accessor status_text --}}
                         </div>
                     </div>
                     <div class="col-md-3">
                         <div class="form-group">
                             <label for="issue_date">Fecha de Emisión <span class="text-danger">*</span></label>
-                            <input type="date" name="issue_date" id="issue_date" class="form-control @error('issue_date') is-invalid @enderror" value="{{ old('issue_date', $quote->issue_date->format('Y-m-d')) }}" {{ ($is_show_mode ?? false) ? 'readonly' : '' }} required>
+                            <input type="date" name="issue_date" id="issue_date" class="form-control @error('issue_date') is-invalid @enderror" value="{{ old('issue_date', $quote->issue_date->format('Y-m-d')) }}" required>
                             @error('issue_date')
                                 <span class="invalid-feedback" role="alert"><strong>{{ $message }}</strong></span>
                             @enderror
@@ -56,7 +82,7 @@
                     <div class="col-md-3">
                         <div class="form-group">
                             <label for="expiry_date">Fecha de Validez <span class="text-danger">*</span></label>
-                            <input type="date" name="expiry_date" id="expiry_date" class="form-control @error('expiry_date') is-invalid @enderror" value="{{ old('expiry_date', $quote->expiry_date->format('Y-m-d')) }}" {{ ($is_show_mode ?? false) ? 'readonly' : '' }} required>
+                            <input type="date" name="expiry_date" id="expiry_date" class="form-control @error('expiry_date') is-invalid @enderror" value="{{ old('expiry_date', $quote->expiry_date->format('Y-m-d')) }}" required>
                             @error('expiry_date')
                                 <span class="invalid-feedback" role="alert"><strong>{{ $message }}</strong></span>
                             @enderror
@@ -64,16 +90,43 @@
                     </div>
                 </div>
 
+                {{-- Moneda y Tasas (Solo mostrar si es relevante o si se permite cambiar) --}}
+                <div class="row">
+                    <div class="col-md-3">
+                        <div class="form-group">
+                            <label for="base_currency_display">Moneda Base</label> {{-- Cambiado a _display para no enviar --}}
+                            <input type="text" id="base_currency_display" class="form-control" value="{{ $quote->base_currency }}" readonly>
+                            {{-- La moneda base no se envía para actualización usualmente --}}
+                            {{-- <input type="hidden" name="base_currency" value="{{ $quote->base_currency }}"> --}}
+                        </div>
+                    </div>
+                     <div class="col-md-3">
+                        <div class="form-group">
+                            <label for="exchange_rate_bcv">Tasa BCV (Opcional)</label>
+                            <input type="number" name="exchange_rate_bcv" id="exchange_rate_bcv" class="form-control @error('exchange_rate_bcv') is-invalid @enderror" value="{{ old('exchange_rate_bcv', $quote->exchange_rate_bcv) }}" step="any" min="0">
+                            @error('exchange_rate_bcv') <span class="invalid-feedback" role="alert"><strong>{{ $message }}</strong></span> @enderror
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="form-group">
+                            <label for="exchange_rate_promedio">Tasa Promedio (Opcional)</label>
+                            <input type="number" name="exchange_rate_promedio" id="exchange_rate_promedio" class="form-control @error('exchange_rate_promedio') is-invalid @enderror" value="{{ old('exchange_rate_promedio', $quote->exchange_rate_promedio) }}" step="any" min="0">
+                            @error('exchange_rate_promedio') <span class="invalid-feedback" role="alert"><strong>{{ $message }}</strong></span> @enderror
+                        </div>
+                    </div>
+                </div>
+
+
                 {{-- SECCIÓN DE ÍTEMS DE LA COTIZACIÓN --}}
                 <hr>
                 <div class="row mt-3 mb-1">
                     <div class="col-md-12 d-flex justify-content-between align-items-center">
-                        <h4>Ítems de la Cotización</h4>
-                        @if(!($is_show_mode ?? false)) {{-- Solo mostrar botón si no es modo show --}}
+                        <h4>Ítems de la Cotización <span class="text-danger">*</span></h4>
                         <button type="button" id="addManualItemButton" class="btn btn-info btn-sm"><i class="fas fa-plus"></i> Añadir Ítem</button>
-                        @endif
                     </div>
                 </div>
+                @error('items') <div class="row"><div class="col-12"><span class="text-danger"><strong>{{ $message }}</strong></span></div></div> @enderror
+
 
                 <div class="table-responsive mt-2">
                     <table class="table table-bordered table-hover" id="quoteItemsTable">
@@ -81,13 +134,11 @@
                             <tr>
                                 <th style="width: 25%;">Producto/Servicio <span class="text-danger">*</span></th>
                                 <th style="width: 10%;" class="text-center">Cantidad <span class="text-danger">*</span></th>
-                                <th style="width: 13%;" class="text-center">Costo Unit. ($) <span class="text-danger">*</span></th>
+                                <th style="width: 13%;" class="text-center">Costo Unit. ({{$quote->base_currency}}) <span class="text-danger">*</span></th>
                                 <th style="width: 22%;" class="text-center">Cálculo Precio</th>
-                                <th style="width: 13%;" class="text-center">Precio Unit. ($) <span class="text-danger">*</span></th>
-                                <th style="width: 12%;" class="text-center">Total Línea ($)</th>
-                                @if(!($is_show_mode ?? false)) {{-- Solo mostrar columna de acción si no es modo show --}}
+                                <th style="width: 13%;" class="text-center">Precio Unit. ({{$quote->base_currency}}) <span class="text-danger">*</span></th>
+                                <th style="width: 12%;" class="text-center">Total Línea ({{$quote->base_currency}})</th>
                                 <th style="width: 5%;" class="text-center">Acción</th>
-                                @endif
                             </tr>
                         </thead>
                         <tbody id="quoteItemsTbody">
@@ -99,6 +150,7 @@
                                         'quantity' => $item->quantity,
                                         'cost' => $item->cost,
                                         'price_calculation_method' => $item->price_calculation_method,
+                                        'applied_rate_value' => $item->applied_rate_value,
                                         'price' => $item->price,
                                     ];
                                 })->toArray());
@@ -108,36 +160,35 @@
                                 @foreach($itemsToDisplay as $key => $itemData)
                                     <tr>
                                         <td>
-                                            @if(isset($itemData['id']) && !($is_show_mode ?? false)) {{-- Solo enviar ID si no es show mode --}}
+                                            @if(isset($itemData['id']))
                                                 <input type="hidden" name="items[{{ $key }}][id]" value="{{ $itemData['id'] }}">
                                             @endif
-                                            <input type="text" name="items[{{ $key }}][manual_product_name]" class="form-control item-name" value="{{ $itemData['manual_product_name'] ?? '' }}" placeholder="Nombre del producto/servicio" {{ ($is_show_mode ?? false) ? 'readonly' : '' }} required>
+                                            <input type="text" name="items[{{ $key }}][manual_product_name]" class="form-control item-name @error('items.'.$key.'.manual_product_name') is-invalid @enderror" value="{{ $itemData['manual_product_name'] ?? '' }}" placeholder="Nombre del producto/servicio" required>
+                                            @error('items.'.$key.'.manual_product_name') <span class="invalid-feedback" role="alert"><strong>{{ $message }}</strong></span> @enderror
                                         </td>
-                                        <td><input type="number" name="items[{{ $key }}][quantity]" class="form-control item-quantity text-right" value="{{ $itemData['quantity'] ?? 1 }}" min="0.01" step="any" {{ ($is_show_mode ?? false) ? 'readonly' : '' }} required></td>
-                                        <td><input type="number" name="items[{{ $key }}][cost]" class="form-control item-cost text-right" value="{{ number_format((float)($itemData['cost'] ?? 0.00), 2, '.', '') }}" min="0" step="any" {{ ($is_show_mode ?? false) ? 'readonly' : '' }} required></td>
+                                        <td><input type="number" name="items[{{ $key }}][quantity]" class="form-control item-quantity text-right @error('items.'.$key.'.quantity') is-invalid @enderror" value="{{ $itemData['quantity'] ?? 1 }}" min="0.01" step="any" required></td>
+                                        <td><input type="number" name="items[{{ $key }}][cost]" class="form-control item-cost text-right @error('items.'.$key.'.cost') is-invalid @enderror" value="{{ number_format((float)($itemData['cost'] ?? 0.00), 2, '.', '') }}" min="0" step="any" required></td>
                                         <td class="text-center">
                                             <div class="form-check form-check-inline">
-                                                <input class="form-check-input item-calc-method" type="checkbox" name="items[{{ $key }}][calc_promedio]" id="calc_promedio_{{ $key }}" value="promedio" {{ (isset($itemData['price_calculation_method']) && $itemData['price_calculation_method'] == 'promedio') ? 'checked' : '' }} {{ ($is_show_mode ?? false) ? 'disabled' : '' }}>
+                                                <input class="form-check-input item-calc-method" type="checkbox" name="items[{{ $key }}][calc_promedio_display]" id="calc_promedio_{{ $key }}" value="promedio" {{ (isset($itemData['price_calculation_method']) && $itemData['price_calculation_method'] == 'promedio') ? 'checked' : '' }}>
                                                 <label class="form-check-label" for="calc_promedio_{{ $key }}">Promedio</label>
                                             </div>
                                             <div class="form-check form-check-inline">
-                                                <input class="form-check-input item-calc-method" type="checkbox" name="items[{{ $key }}][calc_bcv]" id="calc_bcv_{{ $key }}" value="bcv" {{ (isset($itemData['price_calculation_method']) && $itemData['price_calculation_method'] == 'bcv') ? 'checked' : '' }} {{ ($is_show_mode ?? false) ? 'disabled' : '' }}>
+                                                <input class="form-check-input item-calc-method" type="checkbox" name="items[{{ $key }}][calc_bcv_display]" id="calc_bcv_{{ $key }}" value="bcv" {{ (isset($itemData['price_calculation_method']) && $itemData['price_calculation_method'] == 'bcv') ? 'checked' : '' }}>
                                                 <label class="form-check-label" for="calc_bcv_{{ $key }}">BCV</label>
                                             </div>
                                             <input type="hidden" name="items[{{ $key }}][price_calculation_method]" class="item-calc-method-hidden" value="{{ $itemData['price_calculation_method'] ?? '' }}">
+                                            <input type="hidden" name="items[{{ $key }}][applied_rate_value]" class="item-applied-rate-hidden" value="{{ $itemData['applied_rate_value'] ?? '' }}">
                                         </td>
-                                        <td><input type="number" name="items[{{ $key }}][price]" class="form-control item-price text-right" value="{{ number_format((float)($itemData['price'] ?? 0.00), 2, '.', '') }}" min="0" step="any" {{ ($is_show_mode ?? false) || (isset($itemData['price_calculation_method']) && $itemData['price_calculation_method'] != '') ? 'readonly' : '' }} required></td>
+                                        <td><input type="number" name="items[{{ $key }}][price]" class="form-control item-price text-right @error('items.'.$key.'.price') is-invalid @enderror" value="{{ number_format((float)($itemData['price'] ?? 0.00), 2, '.', '') }}" min="0" step="any" {{ (isset($itemData['price_calculation_method']) && !empty($itemData['price_calculation_method'])) ? 'readonly' : '' }} required></td>
                                         <td class="item-line-total text-right font-weight-bold">0.00</td>
-                                        @if(!($is_show_mode ?? false))
                                         <td class="text-center"><button type="button" class="btn btn-danger btn-sm removeItemButton"><i class="fas fa-trash"></i></button></td>
-                                        @endif
                                     </tr>
                                 @endforeach
                             @endif
                         </tbody>
                     </table>
-                </template>
-                @if(!($is_show_mode ?? false)) {{-- Solo mostrar template si no es modo show --}}
+                </div>
                 <template id="quoteItemTemplate">
                     <tr>
                         <td>
@@ -147,22 +198,27 @@
                         <td><input type="number" name="items[__INDEX__][cost]" class="form-control item-cost text-right" value="0.00" min="0" step="any" required></td>
                         <td class="text-center">
                             <div class="form-check form-check-inline">
-                                <input class="form-check-input item-calc-method" type="checkbox" name="items[__INDEX__][calc_promedio]" id="calc_promedio___INDEX__" value="promedio">
+                                <input class="form-check-input item-calc-method" type="checkbox" name="items[__INDEX__][calc_promedio_display]" id="calc_promedio___INDEX__" value="promedio">
                                 <label class="form-check-label" for="calc_promedio___INDEX__">Promedio</label>
                             </div>
                             <div class="form-check form-check-inline">
-                                <input class="form-check-input item-calc-method" type="checkbox" name="items[__INDEX__][calc_bcv]" id="calc_bcv___INDEX__" value="bcv">
+                                <input class="form-check-input item-calc-method" type="checkbox" name="items[__INDEX__][calc_bcv_display]" id="calc_bcv___INDEX__" value="bcv">
                                 <label class="form-check-label" for="calc_bcv___INDEX__">BCV</label>
                             </div>
                              <input type="hidden" name="items[__INDEX__][price_calculation_method]" class="item-calc-method-hidden" value="">
+                             <input type="hidden" name="items[__INDEX__][applied_rate_value]" class="item-applied-rate-hidden" value="">
                         </td>
                         <td><input type="number" name="items[__INDEX__][price]" class="form-control item-price text-right" value="0.00" min="0" step="any" required></td>
                         <td class="item-line-total text-right font-weight-bold">0.00</td>
                         <td class="text-center"><button type="button" class="btn btn-danger btn-sm removeItemButton"><i class="fas fa-trash"></i></button></td>
                     </tr>
                 </template>
-                @endif
+                <div id="deletedItemsContainer">
+                    {{-- Inputs ocultos para ítems eliminados se añadirán aquí por JS --}}
+                </div>
 
+
+                {{-- SECCIÓN DE TOTALES --}}
                 <hr class="mt-4">
                 <div class="row justify-content-end">
                     <div class="col-md-6">
@@ -170,81 +226,79 @@
                             <tbody>
                                 <tr>
                                     <th style="width:50%">Subtotal:</th>
-                                    <td id="quoteSubtotalText" class="text-right font-weight-bold"></td>
-                                    @if(!($is_show_mode ?? false))<input type="hidden" name="subtotal" id="quoteSubtotalInput" value="{{ old('subtotal', $quote->subtotal) }}">@endif
+                                    <td id="quoteSubtotalText" class="text-right font-weight-bold">0.00</td>
                                 </tr>
                                 <tr>
                                     <th>Descuento Global:</th>
                                     <td class="text-right">
                                         <div class="input-group input-group-sm" style="width: 200px; float: right;">
-                                            <input type="number" name="discount_value" id="discount_value" class="form-control text-right" value="{{ old('discount_value', $quote->discount_value ?? 0) }}" min="0" step="any" {{ ($is_show_mode ?? false) ? 'readonly' : '' }}>
+                                            <input type="number" name="discount_value" id="discount_value" class="form-control text-right @error('discount_value') is-invalid @enderror" value="{{ old('discount_value', $quote->discount_value ?? 0) }}" min="0" step="any">
                                             <div class="input-group-append">
-                                                <select name="discount_type" id="discount_type" class="form-control" {{ ($is_show_mode ?? false) ? 'disabled' : '' }}>
-                                                    <option value="fixed" {{ old('discount_type', $quote->discount_type) == 'fixed' ? 'selected' : '' }}>Monto ($)</option>
+                                                <select name="discount_type" id="discount_type" class="form-control @error('discount_type') is-invalid @enderror">
+                                                    <option value="fixed" {{ old('discount_type', $quote->discount_type) == 'fixed' ? 'selected' : '' }}>Monto ({{$quote->base_currency}})</option>
                                                     <option value="percentage" {{ old('discount_type', $quote->discount_type) == 'percentage' ? 'selected' : '' }}>Porcentaje (%)</option>
                                                 </select>
                                             </div>
                                         </div>
+                                        @error('discount_value') <span class="invalid-feedback d-block" role="alert"><strong>{{ $message }}</strong></span> @enderror
                                     </td>
                                 </tr>
                                 <tr>
                                     <th>Monto Descuento (-):</th>
-                                    <td id="discountAmountText" class="text-right text-danger font-weight-bold"></td>
-                                    @if(!($is_show_mode ?? false))<input type="hidden" name="discount_amount" id="discountAmountInput" value="{{ old('discount_amount', $quote->discount_amount) }}">@endif
+                                    <td id="discountAmountText" class="text-right text-danger font-weight-bold">0.00</td>
                                 </tr>
                                 <tr>
                                     <th>Base Imponible:</th>
-                                    <td id="taxableBaseText" class="text-right font-weight-bold"></td>
+                                    <td id="taxableBaseText" class="text-right font-weight-bold">0.00</td>
                                 </tr>
                                 <tr>
-                                    <th>IVA (<span id="ivaRateSpan">{{ number_format(old('tax_percentage', $quote->tax_percentage ?? ($iva_rate ?? 16)), 2) }}</span>%):</th>
-                                    <td id="taxAmountText" class="text-right font-weight-bold"></td>
-                                    @if(!($is_show_mode ?? false))
-                                    <input type="hidden" name="tax_percentage" id="taxPercentageInput" value="{{ old('tax_percentage', $quote->tax_percentage ?? ($iva_rate ?? 16.00)) }}">
-                                    <input type="hidden" name="tax_amount" id="taxAmountInput" value="{{ old('tax_amount', $quote->tax_amount) }}">
-                                    @else
-                                    <input type="hidden" id="taxPercentageInput" value="{{ old('tax_percentage', $quote->tax_percentage ?? ($iva_rate ?? 16.00)) }}"> {{-- Para que el JS lo lea --}}
-                                    @endif
+                                    <th>IVA (<input type="number" name="tax_percentage" id="taxPercentageInput" value="{{ old('tax_percentage', $quote->tax_percentage ?? ($iva_rate_system ?? 16.00)) }}" class="form-control-sm text-right @error('tax_percentage') is-invalid @enderror" style="width: 60px; display: inline-block;" step="0.01" min="0" required> %):</th>
+                                    <td id="taxAmountText" class="text-right font-weight-bold">0.00</td>
                                 </tr>
+                                @error('tax_percentage') <tr><td colspan="2"><span class="invalid-feedback d-block" role="alert"><strong>{{ $message }}</strong></span></td></tr> @enderror
                                 <tr style="font-size: 1.2em;" class="bg-light">
-                                    <th class="pt-2 pb-2">Total ($):</th>
-                                    <td class="pt-2 pb-2"><strong id="quoteTotalText" class="text-right"></strong></td>
-                                    @if(!($is_show_mode ?? false))<input type="hidden" name="total" id="quoteTotalInput" value="{{ old('total', $quote->total) }}">@endif
+                                    <th class="pt-2 pb-2">Total ({{$quote->base_currency}}):</th>
+                                    <td class="pt-2 pb-2"><strong id="quoteTotalText" class="text-right">0.00</strong></td>
                                 </tr>
                             </tbody>
                         </table>
                     </div>
                 </div>
 
+                {{-- CAMPOS ADICIONALES --}}
                 <hr class="mt-3">
                 <div class="row">
                     <div class="col-md-6">
                         <div class="form-group">
                             <label for="terms_and_conditions">Términos y Condiciones</label>
-                            <textarea name="terms_and_conditions" id="terms_and_conditions" class="form-control" rows="4" {{ ($is_show_mode ?? false) ? 'readonly' : '' }}>{{ old('terms_and_conditions', $quote->terms_and_conditions) }}</textarea>
+                            <textarea name="terms_and_conditions" id="terms_and_conditions" class="form-control @error('terms_and_conditions') is-invalid @enderror" rows="4">{{ old('terms_and_conditions', $default_terms_conditions_for_view ?? '') }}</textarea>
+                            @error('terms_and_conditions') <span class="invalid-feedback" role="alert"><strong>{{ $message }}</strong></span> @enderror
                         </div>
                     </div>
                     <div class="col-md-6">
                         <div class="form-group">
                             <label for="notes_to_client">Notas para el Cliente</label>
-                            <textarea name="notes_to_client" id="notes_to_client" class="form-control" rows="4" {{ ($is_show_mode ?? false) ? 'readonly' : '' }}>{{ old('notes_to_client', $quote->notes_to_client) }}</textarea>
+                            <textarea name="notes_to_client" id="notes_to_client" class="form-control @error('notes_to_client') is-invalid @enderror" rows="4">{{ old('notes_to_client', $quote->notes_to_client) }}</textarea>
+                            @error('notes_to_client') <span class="invalid-feedback" role="alert"><strong>{{ $message }}</strong></span> @enderror
                         </div>
                     </div>
                 </div>
                  <div class="form-group">
-                    <label for="internal_notes">Notas Internas</label>
-                    <textarea name="internal_notes" id="internal_notes" class="form-control" rows="2" {{ ($is_show_mode ?? false) ? 'readonly' : '' }}>{{ old('internal_notes', $quote->internal_notes) }}</textarea>
+                    <label for="internal_notes">Notas Internas (No visibles para el cliente)</label>
+                    <textarea name="internal_notes" id="internal_notes" class="form-control @error('internal_notes') is-invalid @enderror" rows="2">{{ old('internal_notes', $quote->internal_notes) }}</textarea>
+                    @error('internal_notes') <span class="invalid-feedback" role="alert"><strong>{{ $message }}</strong></span> @enderror
                 </div>
 
-            </div>
+            </div> {{-- /.card-body --}}
             <div class="card-footer">
-                @if(!($is_show_mode ?? false))
-                    <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Actualizar Cotización</button>
-                @endif
-                <a href="{{ route('quotes.index') }}" class="btn btn-secondary"><i class="fas fa-arrow-left"></i> {{ ($is_show_mode ?? false) ? 'Volver a la Lista' : 'Cancelar' }}</a>
+                <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Actualizar Cotización</button>
+                <a href="{{ route('quotes.index') }}" class="btn btn-secondary"><i class="fas fa-times"></i> Cancelar</a>
+                 <button type="button" id="autoSaveTriggerButton" class="btn btn-info float-right" title="Autoguardar Progreso">
+                    <i class="fas fa-sync-alt"></i> Autoguardar
+                </button>
             </div>
         </form>
-    </div>
+    </div> {{-- /.card --}}
 @stop
 
 @section('css')
@@ -258,163 +312,147 @@
 @section('js')
     <script>
     $(document).ready(function() {
-        let isShowMode = {{ ($is_show_mode ?? false) ? 'true' : 'false' }};
-
-        let IVA_RATE = parseFloat($('#taxPercentageInput').val()) || 16.00;
         let BCV_RATE = parseFloat("{{ $bcv_rate ?? 0 }}");
         let PROMEDIO_RATE = parseFloat("{{ $promedio_rate ?? 0 }}");
-        $('#ivaRateSpan').text(IVA_RATE.toFixed(2));
-        let itemIndex = $('#quoteItemsTbody tr').length;
+        
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.has('restore_autosave') && urlParams.get('restore_autosave') === 'true') {
+            const autosaveDataJson = @json($quote->auto_save_data ?? null);
+            if (autosaveDataJson) {
+                if (confirm("Hay datos autoguardados para esta cotización. ¿Desea restaurarlos?")) {
+                    populateFormWithAutosaveData(autosaveDataJson);
+                }
+            }
+        }
 
         function formatCurrency(value) {
             value = parseFloat(value);
-            if (isNaN(value)) value = 0;
-            return value.toFixed(2);
+            return isNaN(value) ? '0.00' : value.toFixed(2);
         }
 
-        function addNewItemRow() {
-            if (isShowMode) return;
+        function addNewItemRow(itemData = null) {
             let template = $('#quoteItemTemplate').html();
-            let newIndexForTemplate = itemIndex;
-            template = template.replace(/__INDEX__/g, newIndexForTemplate);
+            let newRowIndex = 0;
+            $('#quoteItemsTbody tr').each(function() {
+                let nameAttr = $(this).find('input[name^="items["]').first().attr('name');
+                if (nameAttr) {
+                    let currentIndex = parseInt(nameAttr.match(/items\[(\d+)\]/)[1]);
+                    if (currentIndex >= newRowIndex) newRowIndex = currentIndex + 1;
+                }
+            });
+            template = template.replace(/__INDEX__/g, newRowIndex);
             let $newRow = $(template);
 
-            $newRow.find('.item-name').val('');
-            $newRow.find('.item-cost').val('0.00').prop('readonly', false);
-            $newRow.find('.item-price').val('0.00').prop('readonly', false);
-            $newRow.find('.item-calc-method').prop('checked', false);
-            $newRow.find('.item-calc-method-hidden').val('');
+            if (itemData) {
+                $newRow.find('input[name$="[id]"]').val(itemData.id || '');
+                $newRow.find('.item-name').val(itemData.manual_product_name || '');
+                $newRow.find('.item-quantity').val(itemData.quantity || 1);
+                $newRow.find('.item-cost').val(formatCurrency(itemData.cost || 0));
+                $newRow.find('.item-price').val(formatCurrency(itemData.price || 0));
+                $newRow.find('.item-calc-method-hidden').val(itemData.price_calculation_method || '');
+                $newRow.find('.item-applied-rate-hidden').val(itemData.applied_rate_value || '');
+                if (itemData.price_calculation_method === 'promedio') $newRow.find('input[value="promedio"]').prop('checked', true).trigger('change');
+                else if (itemData.price_calculation_method === 'bcv') $newRow.find('input[value="bcv"]').prop('checked', true).trigger('change');
+                else $newRow.find('.item-price').prop('readonly', false);
+            }
 
             $('#quoteItemsTbody').append($newRow);
             $newRow.find('input[type="checkbox"]').each(function() {
-                let oldId = $(this).attr('id');
-                let newId = oldId.replace('__INDEX__', newIndexForTemplate);
-                $(this).attr('id', newId);
-                $(this).next('label').attr('for', newId);
+                let oldId = $(this).attr('id'); $(this).attr('id', oldId.replace('__INDEX__', newRowIndex));
+                $(this).next('label').attr('for', $(this).attr('id'));
             });
-            itemIndex++;
-            attachItemEventListeners();
+            attachItemEventListenersToRow($newRow);
             calculateAll();
-            $newRow.find('.item-name').focus();
+            if (!itemData) $newRow.find('.item-name').focus();
+        }
+        
+        function populateFormWithAutosaveData(data) {
+            if (!data || typeof data !== 'object') return;
+            Object.keys(data).forEach(key => {
+                if (key !== 'items' && key !== '_token' && key !== '_method') {
+                    $('#' + key + ', [name="' + key + '"]').val(data[key]);
+                }
+            });
+            $('#quoteItemsTbody').empty(); $('#deletedItemsContainer').empty();
+            if (data.items && Array.isArray(data.items)) {
+                data.items.forEach(itemData => addNewItemRow(itemData));
+            }
+            calculateAll();
+            alert("Datos autoguardados restaurados.");
+            const currentUrl = new URL(window.location.href);
+            currentUrl.searchParams.delete('restore_autosave');
+            window.history.replaceState({}, document.title, currentUrl.pathname + currentUrl.search);
         }
 
-        if (!isShowMode) {
-            $('#addManualItemButton').on('click', addNewItemRow);
-        }
+        $('#addManualItemButton').on('click', addNewItemRow);
 
         $('#quoteItemsTbody').on('click', '.removeItemButton', function() {
-            if (isShowMode) return;
-            $(this).closest('tr').remove();
-            let itemId = $(this).closest('tr').find('input[name$="[id]"]').val();
-            if (itemId) { // Si es un item que ya existía y tiene ID
-                 // Añadir a un campo oculto para que el backend sepa que debe borrarlo
-                $('#quoteForm').append('<input type="hidden" name="deleted_items[]" value="' + itemId + '">');
+            let $row = $(this).closest('tr');
+            let itemId = $row.find('input[name$="[id]"]').val(); 
+            if (itemId && itemId !== '') {
+                 if ($('#deletedItemsContainer').find('input[name="deleted_items[]"][value="' + itemId + '"]').length === 0) {
+                    $('#deletedItemsContainer').append('<input type="hidden" name="deleted_items[]" value="' + itemId + '">');
+                }
             }
+            $row.remove();
             calculateAll();
         });
 
-        function attachItemEventListeners() {
-            $('.item-quantity, .item-cost, .item-price').off('.quoteitem').on('input.quoteitem change.quoteitem', function() {
-                if (isShowMode && !$(this).hasClass('item-calc-method')) return;
-                let $row = $(this).closest('tr');
-                let isPriceField = $(this).hasClass('item-price');
-                let isPriceReadonly = $row.find('.item-price').prop('readonly');
-
-                if (isPriceField && isPriceReadonly && !$(this).hasClass('item-calc-method')) { /* No hacer nada */ }
-                else {
-                    let quantity = parseFloat($row.find('.item-quantity').val()) || 0;
-                    let price = parseFloat($row.find('.item-price').val()) || 0;
-                    $row.find('.item-line-total').text(formatCurrency(quantity * price));
+        function attachItemEventListenersToRow($row) {
+            $row.find('.item-quantity, .item-cost, .item-price').off('.quoteitem').on('input.quoteitem change.quoteitem', function() {
+                let $currentRow = $(this).closest('tr');
+                if (!($(this).hasClass('item-price') && $currentRow.find('.item-price').prop('readonly'))) {
+                    let quantity = parseFloat($currentRow.find('.item-quantity').val()) || 0;
+                    let price = parseFloat($currentRow.find('.item-price').val()) || 0;
+                    $currentRow.find('.item-line-total').text(formatCurrency(quantity * price));
                 }
                 calculateAll();
             });
-
-            $('.item-calc-method').off('.quoteitem').on('change.quoteitem', function() {
-                if (isShowMode) return;
-                let $row = $(this).closest('tr');
-                let $checkboxChanged = $(this);
-                let methodName = $checkboxChanged.val();
-                let cost = parseFloat($row.find('.item-cost').val()) || 0;
-                let $itemPriceInput = $row.find('.item-price');
-                let $hiddenMethodInput = $row.find('.item-calc-method-hidden');
-
-                $row.find('.item-calc-method').not($checkboxChanged).prop('checked', false);
-
-                if ($checkboxChanged.is(':checked')) {
-                    $hiddenMethodInput.val(methodName);
-                    let rate = 0;
-                    let validRate = true;
-                    if (methodName === 'promedio') { rate = PROMEDIO_RATE; if (PROMEDIO_RATE <= 0) validRate = false; }
-                    else if (methodName === 'bcv') { rate = BCV_RATE; if (BCV_RATE <= 0) validRate = false; }
-
-                    if (!validRate) {
-                        alert('La tasa para ' + methodName.toUpperCase() + ' no está configurada o es cero.');
-                        $checkboxChanged.prop('checked', false);
-                        $hiddenMethodInput.val('');
-                        $itemPriceInput.prop('readonly', false);
-                        $itemPriceInput.trigger('change');
-                        return;
+            $row.find('.item-calc-method').off('.quoteitem').on('change.quoteitem', function() {
+                let $currentRow = $(this).closest('tr'), $cb = $(this), method = $cb.val(), cost = parseFloat($currentRow.find('.item-cost').val()) || 0;
+                let $priceIn = $currentRow.find('.item-price'), $methodHid = $currentRow.find('.item-calc-method-hidden'), $rateHid = $currentRow.find('.item-applied-rate-hidden');
+                $currentRow.find('.item-calc-method').not($cb).prop('checked', false);
+                if ($cb.is(':checked')) {
+                    $methodHid.val(method); let rate = 0, valid = false;
+                    if (method === 'promedio' && PROMEDIO_RATE > 0) { rate = PROMEDIO_RATE; valid = true; }
+                    else if (method === 'bcv' && BCV_RATE > 0) { rate = BCV_RATE; valid = true; }
+                    if (!valid) {
+                        alert('Tasa para ' + method.toUpperCase() + ' no configurada o es cero.'); $cb.prop('checked', false);
+                        $methodHid.val(''); $rateHid.val(''); $priceIn.prop('readonly', false).trigger('change.quoteitem'); return;
                     }
-                    $itemPriceInput.val( (cost * rate).toFixed(2) );
-                    $itemPriceInput.prop('readonly', true);
+                    $priceIn.val(formatCurrency(cost * rate)).prop('readonly', true); $rateHid.val(rate.toFixed(4));
                 } else {
-                    $hiddenMethodInput.val('');
-                    $itemPriceInput.prop('readonly', false);
+                    $methodHid.val(''); $rateHid.val(''); $priceIn.prop('readonly', false);
                 }
-                $itemPriceInput.trigger('change');
+                $priceIn.trigger('change.quoteitem');
             });
         }
+        
+        $('#quoteItemsTbody tr').each(function() { attachItemEventListenersToRow($(this)); });
+        calculateAll(); // Initial calculation
 
-        function calculateAll() {
-            let subtotal = 0;
-            $('#quoteItemsTbody tr').each(function() {
-                let quantity = parseFloat($(this).find('.item-quantity').val()) || 0;
-                let price = parseFloat($(this).find('.item-price').val()) || 0;
-                let lineTotal = quantity * price;
-                $(this).find('.item-line-total').text(formatCurrency(lineTotal));
-                subtotal += lineTotal;
+        // Autosave Logic
+        let autosaveTimeout; const AUTOSAVE_DELAY = 30000;
+        $('#quoteForm :input:not(#autoSaveTriggerButton)').on('input change keyup paste', () => { clearTimeout(autosaveTimeout); autosaveTimeout = setTimeout(() => triggerAutosave(false), AUTOSAVE_DELAY); });
+        $('#autoSaveTriggerButton').on('click', () => triggerAutosave(true));
+
+        function triggerAutosave(showAlert = false) {
+            const quoteIdForAutosave = "{{ $quote->id ?? null }}"; 
+            if (!quoteIdForAutosave) { if(showAlert) alert('Guarde la cotización como borrador primero para activar el autoguardado.'); return; }
+            let formDataObject = {}; $('#quoteForm').serializeArray().forEach(item => { formDataObject[item.name] = item.value; });
+            let itemsArray = []; let itemIndices = new Set();
+            $('input[name^="items["]').each(function() { let match = $(this).attr('name').match(/items\[(\d+)\]/); if (match && match[1]) itemIndices.add(match[1]); });
+            itemIndices.forEach(index => { let item = {}; $('input[name^="items[' + index + ']"], select[name^="items[' + index + ']"]').each(function() { let fieldNameMatch = $(this).attr('name').match(/items\[\d+\]\[(.*?)\]/); if (fieldNameMatch && fieldNameMatch[1]) item[fieldNameMatch[1]] = $(this).val(); }); if (Object.keys(item).length > 0) itemsArray.push(item); });
+            formDataObject.items = itemsArray; delete formDataObject['calc_promedio_display']; delete formDataObject['calc_bcv_display']; // Eliminar campos de display
+
+            $.ajax({
+                url: "{{ route('quotes.autosave', ['quote' => $quote->id ?? 0]) }}", method: 'POST',
+                data: { _token: "{{ csrf_token() }}", ...formDataObject },
+                beforeSend: () => $('#autoSaveTriggerButton').prop('disabled', true).html('<i class="fas fa-sync-alt fa-spin"></i> Guardando...'),
+                success: res => { if (showAlert) alert(res.message || 'Progreso autoguardado.'); console.log('Autosave successful:', res); },
+                error: xhr => { let msg = xhr.responseJSON?.message || 'Error al autoguardar.'; if (showAlert) alert(msg); console.error('Autosave error:', xhr); },
+                complete: () => $('#autoSaveTriggerButton').prop('disabled', false).html('<i class="fas fa-sync-alt"></i> Autoguardar')
             });
-
-            $('#quoteSubtotalText').text(formatCurrency(subtotal));
-            if (!isShowMode) $('#quoteSubtotalInput').val(subtotal.toFixed(2));
-
-            let discountValue = parseFloat($('#discount_value').val()) || 0;
-            let discountType = $('#discount_type').val();
-            let discountAmount = (discountType === 'percentage') ? (subtotal * discountValue) / 100 : discountValue;
-            discountAmount = Math.min(discountAmount, subtotal);
-
-            $('#discountAmountText').text(formatCurrency(discountAmount));
-            if (!isShowMode) $('#discountAmountInput').val(discountAmount.toFixed(2));
-
-            let taxableBase = subtotal - discountAmount;
-            $('#taxableBaseText').text(formatCurrency(taxableBase));
-
-            let current_iva_rate = parseFloat($('#taxPercentageInput').val()) || 0;
-            let taxAmount = (taxableBase * current_iva_rate) / 100;
-            $('#taxAmountText').text(formatCurrency(taxAmount));
-            if (!isShowMode) $('#taxAmountInput').val(taxAmount.toFixed(2));
-
-            let total = taxableBase + taxAmount;
-            $('#quoteTotalText').text(formatCurrency(total));
-            if (!isShowMode) $('#quoteTotalInput').val(total.toFixed(2));
-        }
-
-        if (!isShowMode) {
-            $('#discount_value, #discount_type').on('input change', calculateAll);
-            $('#taxPercentageInput').on('input change', function() { // Si permites cambiar la tasa de IVA en el formulario
-                IVA_RATE = parseFloat($(this).val()) || 0;
-                $('#ivaRateSpan').text(IVA_RATE.toFixed(2));
-                calculateAll();
-            });
-        }
-
-        attachItemEventListeners();
-        calculateAll();
-
-        if (isShowMode) {
-            $('#quoteForm :input:not(.btn-secondary)').prop('disabled', true); // Deshabilitar todo excepto el botón de cancelar/volver
-            // $('.removeItemButton').hide(); // Los botones de eliminar ya están condicionados en el HTML
-            // $('#addManualItemButton').hide(); // Ya está condicionado en el HTML
         }
     });
     </script>
