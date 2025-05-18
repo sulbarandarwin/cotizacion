@@ -35,6 +35,9 @@ class SystemSettingSeeder extends Seeder
 
             // Otras Configuraciones
             ['key' => 'default_currency', 'value' => 'USD'], // Moneda por defecto del sistema
+            
+            ['key' => 'default_profit_percentage', 'value' => '20.00'],
+            
             // Puedes añadir más configuraciones aquí según necesites
         ];
 

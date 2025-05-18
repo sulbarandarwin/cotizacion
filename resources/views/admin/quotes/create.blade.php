@@ -3,23 +3,22 @@
 @section('title', 'Crear Nueva Cotización')
 
 @section('content_header')
-    <h1 class="m-0 text-dark">Crear Nueva Cotización</h1>
+    <div class="d-flex justify-content-between align-items-center">
+        <h1 class="m-0 text-dark">Crear Nueva Cotización</h1>
+        <span class="text-muted">N° Cotización (aprox.): {{ $nextQuoteNumber ?? 'COT-XXXX' }}</span>
+    </div>
 @stop
 
 @section('content')
-    {{-- Mostrar errores de validación generales o de sesión --}}
     @if ($errors->any())
         <div class="alert alert-danger alert-dismissible">
             <button type="button" class="close" data-dismiss="alert" aria-hidden="true">×</button>
             <h5><i class="icon fas fa-ban"></i> ¡Error de Validación!</h5>
-            Por favor, corrija los errores en el formulario.
-             {{-- Opcional: listar errores:
-            <ul>
+            <ul class="mb-0">
                 @foreach ($errors->all() as $error)
                     <li>{{ $error }}</li>
                 @endforeach
             </ul>
-            --}}
         </div>
     @endif
      @if (session('error'))
@@ -30,404 +29,460 @@
         </div>
     @endif
 
-    <div class="card card-primary card-outline">
-        <div class="card-header">
-            <h3 class="card-title">Información General y Cliente</h3>
-        </div>
-        <form action="{{ route('quotes.store') }}" method="POST" id="quoteForm">
-            @csrf
+    <form id="createQuoteForm" action="{{ route('quotes.store') }}" method="POST">
+        @csrf
+        <div class="card card-primary card-outline">
+            <div class="card-header">
+                <h3 class="card-title">Información General y Cliente</h3>
+                 <div class="card-tools">
+                    <button type="button" id="autoSaveTriggerButtonCreate" class="btn btn-sm btn-outline-secondary" title="Autoguardado no disponible para nuevas cotizaciones hasta el primer guardado.">
+                        <i class="fas fa-save"></i> Autoguardar
+                    </button>
+                </div>
+            </div>
             <div class="card-body">
-                {{-- Fila para Cliente y Fechas --}}
                 <div class="row">
                     <div class="col-md-4">
                         <div class="form-group">
                             <label for="client_id">Cliente <span class="text-danger">*</span></label>
-                            <select name="client_id" id="client_id" class="form-control @error('client_id') is-invalid @enderror" required>
-                                <option value="">Seleccione un cliente...</option>
-                                @if(isset($clients) && $clients->count() > 0)
-                                    @foreach($clients as $id => $name)
-                                        <option value="{{ $id }}" {{ old('client_id') == $id ? 'selected' : '' }}>{{ $name }}</option>
-                                    @endforeach
-                                @else
-                                    <option value="" disabled>No hay clientes disponibles</option>
-                                @endif
+                            <select name="client_id" id="client_id" class="form-control select2 @error('client_id') is-invalid @enderror" required>
+                                <option value="">Seleccione un cliente</option>
+                                @foreach($clients as $id => $name)
+                                    <option value="{{ $id }}" {{ old('client_id') == $id ? 'selected' : '' }}>{{ $name }}</option>
+                                @endforeach
                             </select>
-                            @error('client_id')
-                                <span class="invalid-feedback" role="alert"><strong>{{ $message }}</strong></span>
-                            @enderror
+                            @error('client_id') <span class="invalid-feedback">{{ $message }}</span> @enderror
                         </div>
                     </div>
                     <div class="col-md-2">
-                        {{-- Espacio o campo adicional --}}
-                    </div>
-                    <div class="col-md-3">
                         <div class="form-group">
-                            <label for="issue_date">Fecha de Emisión <span class="text-danger">*</span></label>
+                            <label for="issue_date">Fecha Emisión <span class="text-danger">*</span></label>
                             <input type="date" name="issue_date" id="issue_date" class="form-control @error('issue_date') is-invalid @enderror" value="{{ old('issue_date', now()->format('Y-m-d')) }}" required>
-                            @error('issue_date')
-                                <span class="invalid-feedback" role="alert"><strong>{{ $message }}</strong></span>
-                            @enderror
+                            @error('issue_date') <span class="invalid-feedback">{{ $message }}</span> @enderror
                         </div>
                     </div>
-                    <div class="col-md-3">
+                    <div class="col-md-2">
                         <div class="form-group">
-                            <label for="expiry_date">Fecha de Validez <span class="text-danger">*</span></label>
+                            <label for="expiry_date">Fecha Validez <span class="text-danger">*</span></label>
                             <input type="date" name="expiry_date" id="expiry_date" class="form-control @error('expiry_date') is-invalid @enderror" value="{{ old('expiry_date', now()->addDays($default_validity_days ?? 15)->format('Y-m-d')) }}" required>
-                            @error('expiry_date')
-                                <span class="invalid-feedback" role="alert"><strong>{{ $message }}</strong></span>
-                            @enderror
+                            @error('expiry_date') <span class="invalid-feedback">{{ $message }}</span> @enderror
+                        </div>
+                    </div>
+                    <div class="col-md-2">
+                        <div class="form-group">
+                            <label for="base_currency">Moneda <span class="text-danger">*</span></label>
+                            <select name="base_currency" id="base_currency" class="form-control @error('base_currency') is-invalid @enderror" required>
+                                <option value="USD" {{ old('base_currency', 'USD') == 'USD' ? 'selected' : '' }}>USD</option>
+                                <option value="BS" {{ old('base_currency', 'USD') == 'BS' ? 'selected' : '' }}>BS</option>
+                            </select>
+                            @error('base_currency') <span class="invalid-feedback">{{ $message }}</span> @enderror
                         </div>
                     </div>
                 </div>
 
-                 {{-- Moneda y Tasas --}}
                 <div class="row">
                     <div class="col-md-3">
                         <div class="form-group">
-                            <label for="base_currency">Moneda Base <span class="text-danger">*</span></label>
-                            <select name="base_currency" id="base_currency" class="form-control @error('base_currency') is-invalid @enderror" required>
-                                <option value="USD" {{ old('base_currency', 'USD') == 'USD' ? 'selected' : '' }}>USD</option>
-                                <option value="BS" {{ old('base_currency') == 'BS' ? 'selected' : '' }}>BS</option>
-                            </select>
-                            @error('base_currency') <span class="invalid-feedback" role="alert"><strong>{{ $message }}</strong></span> @enderror
-                        </div>
-                    </div>
-                     <div class="col-md-3">
-                        <div class="form-group">
                             <label for="exchange_rate_bcv">Tasa BCV (Opcional)</label>
-                            <input type="number" name="exchange_rate_bcv" id="exchange_rate_bcv" class="form-control @error('exchange_rate_bcv') is-invalid @enderror" value="{{ old('exchange_rate_bcv', $bcv_rate > 0 ? $bcv_rate : '') }}" placeholder="{{ $bcv_rate > 0 ? $bcv_rate : '0.00' }}" step="any" min="0">
-                            @error('exchange_rate_bcv') <span class="invalid-feedback" role="alert"><strong>{{ $message }}</strong></span> @enderror
+                            <input type="number" step="any" name="exchange_rate_bcv" id="exchange_rate_bcv" class="form-control @error('exchange_rate_bcv') is-invalid @enderror rate-input" value="{{ old('exchange_rate_bcv', number_format($bcv_rate ?? 0, 2, '.', '')) }}" placeholder="Tasa BCV del día">
+                            @error('exchange_rate_bcv') <span class="invalid-feedback">{{ $message }}</span> @enderror
                         </div>
                     </div>
                     <div class="col-md-3">
                         <div class="form-group">
                             <label for="exchange_rate_promedio">Tasa Promedio (Opcional)</label>
-                            <input type="number" name="exchange_rate_promedio" id="exchange_rate_promedio" class="form-control @error('exchange_rate_promedio') is-invalid @enderror" value="{{ old('exchange_rate_promedio', $promedio_rate > 0 ? $promedio_rate : '') }}" placeholder="{{ $promedio_rate > 0 ? $promedio_rate : '0.00' }}" step="any" min="0">
-                            @error('exchange_rate_promedio') <span class="invalid-feedback" role="alert"><strong>{{ $message }}</strong></span> @enderror
+                            <input type="number" step="any" name="exchange_rate_promedio" id="exchange_rate_promedio" class="form-control @error('exchange_rate_promedio') is-invalid @enderror rate-input" value="{{ old('exchange_rate_promedio', number_format($promedio_rate ?? 0, 2, '.', '')) }}" placeholder="Tasa promedio del día">
+                            @error('exchange_rate_promedio') <span class="invalid-feedback">{{ $message }}</span> @enderror
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="form-group">
+                            <label for="profit_percentage">Porcentaje Utilidad (%)</label>
+                            <input type="number" step="0.01" name="profit_percentage" id="profit_percentage" class="form-control @error('profit_percentage') is-invalid @enderror calc-trigger" value="{{ old('profit_percentage', number_format($default_profit_percentage ?? 0, 2, '.', '')) }}" placeholder="Ej: 20.00">
+                            @error('profit_percentage') <span class="invalid-feedback">{{ $message }}</span> @enderror
                         </div>
                     </div>
                 </div>
+            </div>
+        </div>
 
-                {{-- SECCIÓN DE ÍTEMS DE LA COTIZACIÓN --}}
-                <hr>
-                <div class="row mt-3 mb-1">
-                    <div class="col-md-12 d-flex justify-content-between align-items-center">
-                        <h4>Ítems de la Cotización <span class="text-danger">*</span></h4>
-                        <button type="button" id="addManualItemButton" class="btn btn-info btn-sm"><i class="fas fa-plus"></i> Añadir Ítem</button>
-                    </div>
+        <div class="card card-info card-outline">
+            <div class="card-header">
+                <h3 class="card-title">Ítems de la Cotización <span class="text-danger">*</span></h3>
+                <div class="card-tools">
+                    <button type="button" id="addManualItemButton" class="btn btn-sm btn-success"><i class="fas fa-plus"></i> Añadir Ítem Manual</button>
+                     <button type="button" id="searchProductButton" class="btn btn-sm btn-info"><i class="fas fa-search"></i> Buscar Producto</button>
                 </div>
-                 @error('items') <div class="row"><div class="col-12"><span class="text-danger"><strong>{{ $message }}</strong></span></div></div> @enderror
-
-                <div class="table-responsive mt-2">
-                    <table class="table table-bordered table-hover" id="quoteItemsTable">
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-sm" id="quoteItemsTable">
                         <thead class="thead-light">
                             <tr>
                                 <th style="width: 25%;">Producto/Servicio <span class="text-danger">*</span></th>
-                                <th style="width: 10%;" class="text-center">Cantidad <span class="text-danger">*</span></th>
-                                <th style="width: 13%;" class="text-center">Costo Unit. ($) <span class="text-danger">*</span></th>
-                                <th style="width: 22%;" class="text-center">Cálculo Precio</th>
-                                <th style="width: 13%;" class="text-center">Precio Unit. ($) <span class="text-danger">*</span></th>
-                                <th style="width: 12%;" class="text-center">Total Línea ($)</th>
-                                <th style="width: 5%;" class="text-center">Acción</th>
+                                <th style="width: 10%;">Cantidad <span class="text-danger">*</span></th>
+                                <th style="width: 10%;">Medida</th>
+                                <th style="width: 12%;">Costo Unit. <span class="text-danger">*</span></th>
+                                <th style="width: 5%;">+IVA?</th>
+                                <th style="width: 16%;">Cálculo Precio</th>
+                                <th style="width: 12%;">Precio Unit. <span class="text-danger">*</span></th>
+                                <th style="width: 10%;">Total</th>
+                                <th style="width: 3%;">Acc.</th>
                             </tr>
                         </thead>
                         <tbody id="quoteItemsTbody">
                             @if(is_array(old('items')))
-                                @foreach(old('items') as $key => $oldItem)
-                                    <tr>
+                                @foreach(old('items') as $index => $item_data)
+                                    @php $item = (object) $item_data; @endphp
+                                    <tr class="quote-item-row">
                                         <td>
-                                            <input type="text" name="items[{{ $key }}][manual_product_name]" class="form-control item-name @error('items.'.$key.'.manual_product_name') is-invalid @enderror" value="{{ $oldItem['manual_product_name'] ?? '' }}" placeholder="Nombre del producto/servicio" required>
-                                            @error('items.'.$key.'.manual_product_name') <span class="invalid-feedback" role="alert"><strong>{{ $message }}</strong></span> @enderror
+                                            <input type="hidden" name="items[{{ $index }}][product_id]" value="{{ $item->product_id ?? '' }}" class="item-product-id">
+                                            <input type="text" name="items[{{ $index }}][manual_product_name]" class="form-control form-control-sm item-name @error('items.'.$index.'.manual_product_name') is-invalid @enderror" value="{{ $item->manual_product_name ?? '' }}" placeholder="Nombre del Producto" required>
                                         </td>
-                                        <td><input type="number" name="items[{{ $key }}][quantity]" class="form-control item-quantity text-right @error('items.'.$key.'.quantity') is-invalid @enderror" value="{{ $oldItem['quantity'] ?? 1 }}" min="0.01" step="any" required></td>
-                                        <td><input type="number" name="items[{{ $key }}][cost]" class="form-control item-cost text-right @error('items.'.$key.'.cost') is-invalid @enderror" value="{{ number_format((float)($oldItem['cost'] ?? 0.00), 2, '.', '') }}" min="0" step="any" required></td>
-                                        <td class="text-center">
-                                            <div class="form-check form-check-inline">
-                                                <input class="form-check-input item-calc-method" type="checkbox" name="items[{{ $key }}][calc_promedio]" id="calc_promedio_{{ $key }}" value="promedio" {{ (isset($oldItem['price_calculation_method']) && $oldItem['price_calculation_method'] == 'promedio') || (isset($oldItem['calc_promedio']) && $oldItem['calc_promedio'] == 'promedio') ? 'checked' : '' }}>
-                                                <label class="form-check-label" for="calc_promedio_{{ $key }}">Promedio</label>
-                                            </div>
-                                            <div class="form-check form-check-inline">
-                                                <input class="form-check-input item-calc-method" type="checkbox" name="items[{{ $key }}][calc_bcv]" id="calc_bcv_{{ $key }}" value="bcv" {{ (isset($oldItem['price_calculation_method']) && $oldItem['price_calculation_method'] == 'bcv') || (isset($oldItem['calc_bcv']) && $oldItem['calc_bcv'] == 'bcv') ? 'checked' : '' }}>
-                                                <label class="form-check-label" for="calc_bcv_{{ $key }}">BCV</label>
-                                            </div>
-                                            <input type="hidden" name="items[{{ $key }}][price_calculation_method]" class="item-calc-method-hidden" value="{{ $oldItem['price_calculation_method'] ?? '' }}">
-                                            <input type="hidden" name="items[{{ $key }}][applied_rate_value]" class="item-applied-rate-hidden" value="{{ $oldItem['applied_rate_value'] ?? '' }}">
+                                        <td><input type="number" name="items[{{ $index }}][quantity]" class="form-control form-control-sm item-quantity calc-trigger @error('items.'.$index.'.quantity') is-invalid @enderror" value="{{ $item->quantity ?? 1 }}" step="any" min="0.01" required></td>
+                                        <td><input type="text" name="items[{{ $index }}][manual_product_unit]" class="form-control form-control-sm item-unit" value="{{ $item->manual_product_unit ?? 'Medida' }}" placeholder="Ej: Pza, Kg"></td>
+                                        <td>
+                                            <input type="number" name="items[{{ $index }}][cost]" class="form-control form-control-sm item-cost calc-trigger @error('items.'.$index.'.cost') is-invalid @enderror" value="{{ number_format((float)($item->cost ?? 0), 2, '.', '') }}" step="any" min="0" required>
                                         </td>
-                                        <td><input type="number" name="items[{{ $key }}][price]" class="form-control item-price text-right @error('items.'.$key.'.price') is-invalid @enderror" value="{{ number_format((float)($oldItem['price'] ?? 0.00), 2, '.', '') }}" min="0" step="any" {{ (isset($oldItem['price_calculation_method']) && $oldItem['price_calculation_method'] != '') ? 'readonly' : '' }} required></td>
-                                        <td class="item-line-total text-right font-weight-bold">0.00</td>
-                                        <td class="text-center"><button type="button" class="btn btn-danger btn-sm removeItemButton"><i class="fas fa-trash"></i></button></td>
+                                        <td>
+                                            <div class="form-check text-center">
+                                                <input type="checkbox" name="items[{{ $index }}][cost_plus_iva]" value="1" class="form-check-input item-cost-plus-iva calc-trigger" style="margin-top: 0.3rem; margin-left: -0.5rem;" {{ !empty($item->cost_plus_iva) && $item->cost_plus_iva == '1' ? 'checked' : '' }}>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <input type="hidden" name="items[{{ $index }}][price_calculation_method]" class="item-price-calc-method" value="{{ $item->price_calculation_method ?? 'manual' }}">
+                                            <input type="hidden" name="items[{{ $index }}][applied_rate_value]" class="item-applied-rate" value="{{ $item->applied_rate_value ?? '' }}">
+                                            <div class="btn-group btn-group-toggle" data-toggle="buttons">
+                                                <label class="btn btn-xs btn-outline-info calc-price-btn {{ ($item->price_calculation_method ?? 'manual') == 'promedio' ? 'active' : '' }}" data-method="promedio" title="Usar Tasa Promedio">
+                                                    <input type="radio" name="items[{{ $index }}][calc_option]" value="promedio" class="calc-trigger" {{ ($item->price_calculation_method ?? 'manual') == 'promedio' ? 'checked' : '' }}> <span class="d-none d-sm-inline">Prom.</span>
+                                                </label>
+                                                <label class="btn btn-xs btn-outline-warning calc-price-btn {{ ($item->price_calculation_method ?? 'manual') == 'bcv' ? 'active' : '' }}" data-method="bcv" title="Usar Tasa BCV">
+                                                    <input type="radio" name="items[{{ $index }}][calc_option]" value="bcv" class="calc-trigger" {{ ($item->price_calculation_method ?? 'manual') == 'bcv' ? 'checked' : '' }}> <span class="d-none d-sm-inline">BCV</span>
+                                                </label>
+                                                <label class="btn btn-xs btn-outline-secondary calc-price-btn {{ ($item->price_calculation_method ?? 'manual') == 'manual' ? 'active' : '' }}" data-method="manual" title="Precio Manual">
+                                                    <input type="radio" name="items[{{ $index }}][calc_option]" value="manual" class="calc-trigger" {{ ($item->price_calculation_method ?? 'manual') == 'manual' ? 'checked' : '' }}> <i class="fas fa-edit"></i>
+                                                </label>
+                                            </div>
+                                        </td>
+                                        <td><input type="number" name="items[{{ $index }}][price]" class="form-control form-control-sm item-price calc-trigger @error('items.'.$index.'.price') is-invalid @enderror" value="{{ number_format((float)($item->price ?? 0), 2, '.', '') }}" step="any" min="0" required {{ ($item->price_calculation_method ?? 'manual') != 'manual' ? 'readonly' : '' }}></td>
+                                        <td class="text-right"><span class="item-line-total">0.00</span></td>
+                                        <td><button type="button" class="btn btn-xs btn-danger removeItemButton"><i class="fas fa-trash"></i></button></td>
                                     </tr>
                                 @endforeach
                             @endif
                         </tbody>
                     </table>
                 </div>
-                <template id="quoteItemTemplate">
-                    <tr>
-                        <td>
-                            <input type="text" name="items[__INDEX__][manual_product_name]" class="form-control item-name" placeholder="Nombre del producto/servicio" required>
-                        </td>
-                        <td><input type="number" name="items[__INDEX__][quantity]" class="form-control item-quantity text-right" value="1" min="0.01" step="any" required></td>
-                        <td><input type="number" name="items[__INDEX__][cost]" class="form-control item-cost text-right" value="0.00" min="0" step="any" required></td>
-                        <td class="text-center">
-                            <div class="form-check form-check-inline">
-                                <input class="form-check-input item-calc-method" type="checkbox" name="items[__INDEX__][calc_promedio]" id="calc_promedio___INDEX__" value="promedio">
-                                <label class="form-check-label" for="calc_promedio___INDEX__">Promedio</label>
-                            </div>
-                            <div class="form-check form-check-inline">
-                                <input class="form-check-input item-calc-method" type="checkbox" name="items[__INDEX__][calc_bcv]" id="calc_bcv___INDEX__" value="bcv">
-                                <label class="form-check-label" for="calc_bcv___INDEX__">BCV</label>
-                            </div>
-                             <input type="hidden" name="items[__INDEX__][price_calculation_method]" class="item-calc-method-hidden" value="">
-                             <input type="hidden" name="items[__INDEX__][applied_rate_value]" class="item-applied-rate-hidden" value="">
-                        </td>
-                        <td><input type="number" name="items[__INDEX__][price]" class="form-control item-price text-right" value="0.00" min="0" step="any" required></td>
-                        <td class="item-line-total text-right font-weight-bold">0.00</td>
-                        <td class="text-center"><button type="button" class="btn btn-danger btn-sm removeItemButton"><i class="fas fa-trash"></i></button></td>
-                    </tr>
-                </template>
+                 @error('items') <span class="text-danger ml-2">{{ $message }}</span> @enderror
+            </div>
+        </div>
 
-                {{-- SECCIÓN DE TOTALES --}}
-                <hr class="mt-4">
-                <div class="row justify-content-end">
-                    <div class="col-md-6">
+        <div class="row">
+            <div class="col-md-6">
+                <div class="card card-secondary card-outline">
+                    <div class="card-header"><h3 class="card-title">Notas y Términos</h3></div>
+                    <div class="card-body">
+                        <div class="form-group">
+                            <label for="terms_and_conditions">Términos y Condiciones</label>
+                            <textarea name="terms_and_conditions" id="terms_and_conditions" class="form-control" rows="3">{{ old('terms_and_conditions', $default_terms_conditions ?? '') }}</textarea>
+                        </div>
+                        <div class="form-group">
+                            <label for="notes_to_client">Notas para el Cliente (Opcional)</label>
+                            <textarea name="notes_to_client" id="notes_to_client" class="form-control" rows="2">{{ old('notes_to_client') }}</textarea>
+                        </div>
+                         <div class="form-group">
+                            <label for="internal_notes">Notas Internas (No visible al cliente, Opcional)</label>
+                            <textarea name="internal_notes" id="internal_notes" class="form-control" rows="2">{{ old('internal_notes') }}</textarea>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card card-warning card-outline">
+                    <div class="card-header"><h3 class="card-title">Resumen y Descuentos</h3></div>
+                    <div class="card-body">
                         <table class="table table-sm">
-                            <tbody>
-                                <tr>
-                                    <th style="width:50%">Subtotal:</th>
-                                    <td id="quoteSubtotalText" class="text-right font-weight-bold">0.00</td>
-                                </tr>
-                                <tr>
-                                    <th>Descuento Global:</th>
-                                    <td class="text-right">
-                                        <div class="input-group input-group-sm" style="width: 200px; float: right;">
-                                            <input type="number" name="discount_value" id="discount_value" class="form-control text-right @error('discount_value') is-invalid @enderror" value="{{ old('discount_value', 0) }}" min="0" step="any">
-                                            <div class="input-group-append">
-                                                <select name="discount_type" id="discount_type" class="form-control @error('discount_type') is-invalid @enderror">
-                                                    <option value="fixed" {{ old('discount_type') == 'fixed' ? 'selected' : '' }}>Monto ($)</option>
-                                                    <option value="percentage" {{ old('discount_type') == 'percentage' ? 'selected' : '' }}>Porcentaje (%)</option>
-                                                </select>
-                                            </div>
-                                        </div>
-                                         @error('discount_value') <span class="invalid-feedback d-block" role="alert"><strong>{{ $message }}</strong></span> @enderror
-                                    </td>
-                                </tr>
-                                <tr>
-                                    <th>Monto Descuento (-):</th>
-                                    <td id="discountAmountText" class="text-right text-danger font-weight-bold">0.00</td>
-                                </tr>
-                                <tr>
-                                    <th>Base Imponible:</th>
-                                    <td id="taxableBaseText" class="text-right font-weight-bold">0.00</td>
-                                </tr>
-                                <tr>
-                                    <th>IVA (<input type="number" name="tax_percentage" id="taxPercentageInput" value="{{ old('tax_percentage', $iva_rate ?? 16.00) }}" class="form-control-sm text-right @error('tax_percentage') is-invalid @enderror" style="width: 60px; display: inline-block;" step="0.01" required> %):</th>
-                                    <td id="taxAmountText" class="text-right font-weight-bold">0.00</td>
-                                </tr>
-                                @error('tax_percentage') <tr><td colspan="2"><span class="invalid-feedback d-block" role="alert"><strong>{{ $message }}</strong></span></td></tr> @enderror
-                                <tr style="font-size: 1.2em;" class="bg-light">
-                                    <th class="pt-2 pb-2">Total ($):</th>
-                                    <td class="pt-2 pb-2"><strong id="quoteTotalText" class="text-right">0.00</strong></td>
-                                </tr>
-                            </tbody>
+                            <tr><th>Subtotal Bruto:</th><td class="text-right" id="quoteSubtotalText">0.00</td></tr>
+                            <tr>
+                                <td>
+                                    <label for="discount_type">Descuento Global:</label>
+                                    <select name="discount_type" id="discount_type" class="form-control form-control-sm d-inline-block calc-trigger" style="width: auto;">
+                                        <option value="">Ninguno</option>
+                                        <option value="fixed" {{ old('discount_type') == 'fixed' ? 'selected' : '' }}>Monto Fijo</option>
+                                        <option value="percentage" {{ old('discount_type') == 'percentage' ? 'selected' : '' }}>Porcentaje (%)</option>
+                                    </select>
+                                </td>
+                                <td class="text-right">
+                                    <input type="number" step="any" name="discount_value" id="discount_value" class="form-control form-control-sm d-inline-block calc-trigger @error('discount_value') is-invalid @enderror" value="{{ old('discount_value', 0) }}" style="width: 100px;">
+                                    @error('discount_value') <span class="invalid-feedback">{{ $message }}</span> @enderror
+                                </td>
+                            </tr>
+                            <tr><th>Monto Descuento:</th><td class="text-right" id="discountAmountText">0.00</td></tr>
+                            <tr><th>Base Imponible:</th><td class="text-right" id="taxableBaseText">0.00</td></tr>
+                            <tr>
+                                <td>
+                                    <label for="tax_percentage">Impuesto (%):</label>
+                                    <input type="number" step="any" name="tax_percentage" id="taxPercentageInput" class="form-control form-control-sm d-inline-block calc-trigger @error('tax_percentage') is-invalid @enderror" value="{{ old('tax_percentage', $iva_rate ?? 16.00) }}" required style="width: 80px;">
+                                    @error('tax_percentage') <span class="invalid-feedback">{{ $message }}</span> @enderror
+                                </td>
+                                <td class="text-right" id="taxAmountText">0.00</td>
+                            </tr>
+                            <tr class="bg-light"><th class="h4">Total Cotización:</th><td class="text-right h4" id="quoteTotalText">0.00</td></tr>
                         </table>
                     </div>
                 </div>
-
-                {{-- CAMPOS ADICIONALES --}}
-                <hr class="mt-3">
-                <div class="row">
-                    <div class="col-md-6">
-                        <div class="form-group">
-                            <label for="terms_and_conditions">Términos y Condiciones</label>
-                            <textarea name="terms_and_conditions" id="terms_and_conditions" class="form-control @error('terms_and_conditions') is-invalid @enderror" rows="4">{{ old('terms_and_conditions', $default_terms_conditions ?? '') }}</textarea>
-                             @error('terms_and_conditions') <span class="invalid-feedback" role="alert"><strong>{{ $message }}</strong></span> @enderror
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <div class="form-group">
-                            <label for="notes_to_client">Notas para el Cliente</label>
-                            <textarea name="notes_to_client" id="notes_to_client" class="form-control @error('notes_to_client') is-invalid @enderror" rows="4">{{ old('notes_to_client') }}</textarea>
-                            @error('notes_to_client') <span class="invalid-feedback" role="alert"><strong>{{ $message }}</strong></span> @enderror
-                        </div>
-                    </div>
-                </div>
-                 <div class="form-group">
-                    <label for="internal_notes">Notas Internas (No visibles para el cliente)</label>
-                    <textarea name="internal_notes" id="internal_notes" class="form-control @error('internal_notes') is-invalid @enderror" rows="2">{{ old('internal_notes') }}</textarea>
-                    @error('internal_notes') <span class="invalid-feedback" role="alert"><strong>{{ $message }}</strong></span> @enderror
-                </div>
-
-            </div> {{-- /.card-body --}}
-            <div class="card-footer">
-                <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Guardar Cotización</button>
-                <a href="{{ route('quotes.index') }}" class="btn btn-secondary"><i class="fas fa-times"></i> Cancelar</a>
             </div>
-        </form>
-    </div> {{-- /.card --}}
+        </div>
+        <div class="card-footer bg-white">
+            <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Guardar Cotización</button>
+            <a href="{{ route('quotes.index') }}" class="btn btn-secondary">Cancelar</a>
+        </div>
+    </form>
+
+    <div class="modal fade" id="searchProductModal" tabindex="-1" role="dialog" aria-labelledby="searchProductModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="searchProductModalLabel">Buscar Producto</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="input-group mb-3">
+                        <input type="text" id="productSearchInput" class="form-control" placeholder="Buscar por nombre o código...">
+                        <div class="input-group-append">
+                            <button class="btn btn-outline-secondary" type="button" id="performProductSearch"><i class="fas fa-search"></i></button>
+                        </div>
+                    </div>
+                    <div class="list-group" id="productSearchResults"></div>
+                </div>
+            </div>
+        </div>
+    </div>
 @stop
 
 @section('css')
-    <style>
-        #quoteItemsTable input[type="number"] { max-width: 120px; }
-        #quoteItemsTable .form-check-label { font-size: 0.85rem; }
-        .table-sm td, .table-sm th { padding: .4rem; }
-    </style>
+    {{-- <link rel="stylesheet" href="/css/admin_custom.css"> --}}
 @stop
 
-@section('js')
-    <script>
-    $(document).ready(function() {
-        // console.log('Formulario de creación de cotizaciones v5.');
+@push('js')
+<script>
+$(document).ready(function() {
+    console.log("Create Quote JS: Documento listo para Edición 6 Final.");
 
-        let IVA_RATE = parseFloat($('#taxPercentageInput').val()) || {{ $iva_rate ?? 16.00 }};
-        let BCV_RATE = parseFloat("{{ $bcv_rate ?? 0 }}");
-        let PROMEDIO_RATE = parseFloat("{{ $promedio_rate ?? 0 }}");
-        // $('#ivaRateSpan').text(IVA_RATE.toFixed(2)); // taxPercentageInput es ahora un input
+    if ($.fn.select2) {
+        $('#client_id').select2({ placeholder: "Seleccione un cliente", allowClear: true });
+    } else {
+        console.error("Create Quote JS: Select2 no está cargado.");
+    }
 
-        // let itemIndex = $('#quoteItemsTbody tr').length > 0 ? $('#quoteItemsTbody tr').length : 0; // Se recalculará en addNewItemRow
-
-
-        function formatCurrency(value) {
-            value = parseFloat(value);
-            if (isNaN(value)) value = 0;
-            return value.toFixed(2);
-        }
-
-        function addNewItemRow() {
-            let template = $('#quoteItemTemplate').html();
-            // Usa el número de filas actual para asegurar unicidad de índice, incluso si se borran filas intermedias
-            let newRowIndex = $('#quoteItemsTbody tr').length ? (parseInt($('#quoteItemsTbody tr:last').find('input[name^="items["]').attr('name').match(/items\[(\d+)\]/)[1]) + 1) : 0;
-            template = template.replace(/__INDEX__/g, newRowIndex);
-            let $newRow = $(template);
-
-            $newRow.find('.item-name').val('');
-            $newRow.find('.item-cost').val('0.00').prop('readonly', false);
-            $newRow.find('.item-price').val('0.00').prop('readonly', false);
-            $newRow.find('.item-calc-method').prop('checked', false);
-            $newRow.find('.item-calc-method-hidden').val('');
-            $newRow.find('.item-applied-rate-hidden').val('');
-
-
-            $('#quoteItemsTbody').append($newRow);
-             $newRow.find('input[type="checkbox"]').each(function() {
-                let oldId = $(this).attr('id');
-                let newId = oldId.replace('__INDEX__', newRowIndex); // Usar el newRowIndex calculado
-                $(this).attr('id', newId);
-                $(this).next('label').attr('for', newId);
-            });
-
-            attachItemEventListenersToRow($newRow);
-            calculateAll();
-            $newRow.find('.item-name').focus();
-        }
-
-        $('#addManualItemButton').on('click', function() {
-            addNewItemRow();
-        });
-
-        $('#quoteItemsTbody').on('click', '.removeItemButton', function() {
-            $(this).closest('tr').remove();
-            calculateAll();
-        });
-
-        function attachItemEventListenersToRow($row) {
-            $row.find('.item-quantity, .item-cost, .item-price').off('.quoteitem').on('input.quoteitem change.quoteitem', function() {
-                let $currentRow = $(this).closest('tr');
-                let isPriceField = $(this).hasClass('item-price');
-                let isPriceReadonly = $currentRow.find('.item-price').prop('readonly');
-
-                if (isPriceField && isPriceReadonly) { /* No hacer nada */ }
-                else {
-                    let quantity = parseFloat($currentRow.find('.item-quantity').val()) || 0;
-                    let price = parseFloat($currentRow.find('.item-price').val()) || 0;
-                    $currentRow.find('.item-line-total').text(formatCurrency(quantity * price));
-                }
-                calculateAll();
-            });
-
-            $row.find('.item-calc-method').off('.quoteitem').on('change.quoteitem', function() {
-                let $currentRow = $(this).closest('tr');
-                let $checkboxChanged = $(this);
-                let methodName = $checkboxChanged.val();
-                let cost = parseFloat($currentRow.find('.item-cost').val()) || 0;
-                let $itemPriceInput = $currentRow.find('.item-price');
-                let $hiddenMethodInput = $currentRow.find('.item-calc-method-hidden');
-                let $hiddenAppliedRateInput = $currentRow.find('.item-applied-rate-hidden');
-
-                $currentRow.find('.item-calc-method').not($checkboxChanged).prop('checked', false);
-
-                if ($checkboxChanged.is(':checked')) {
-                    $hiddenMethodInput.val(methodName);
-                    let rate = 0;
-                    let validRate = true;
-                    if (methodName === 'promedio') { rate = PROMEDIO_RATE; if (PROMEDIO_RATE <= 0) validRate = false; }
-                    else if (methodName === 'bcv') { rate = BCV_RATE; if (BCV_RATE <= 0) validRate = false; }
-
-                    if (!validRate) {
-                        alert('La tasa para ' + methodName.toUpperCase() + ' no está configurada o es cero.');
-                        $checkboxChanged.prop('checked', false);
-                        $hiddenMethodInput.val('');
-                        $hiddenAppliedRateInput.val('');
-                        $itemPriceInput.prop('readonly', false);
-                        return;
-                    }
-                    $itemPriceInput.val( (cost * rate).toFixed(2) );
-                    $hiddenAppliedRateInput.val(rate.toFixed(4));
-                    $itemPriceInput.prop('readonly', true);
+    let globalItemIndex = 0;
+    @if(is_array(old('items')))
+        globalItemIndex = {{ count(old('items')) }};
+        console.log("Create Quote JS: Hay datos 'old'. globalItemIndex: " + globalItemIndex);
+        @foreach(old('items') as $index => $item_data)
+            @php $item = (object) $item_data; @endphp
+            let oldCostPlusIva_{{ $index }} = "{{ old('items.'.$index.'.cost_plus_iva') }}";
+            if (oldCostPlusIva_{{ $index }} === '1') {
+                $('input[name="items[{{ $index }}][cost_plus_iva]"]').prop('checked', true);
+            }
+            let oldCalcMethod_{{ $index }} = "{{ old('items.'.$index.'.price_calculation_method', 'manual') }}";
+            let radioToCheck_{{ $index }} = $(`input[name="items[{{ $index }}][calc_option]"][value="${oldCalcMethod_{{ $index }}}"]`);
+            if (radioToCheck_{{ $index }}.length) {
+                radioToCheck_{{ $index }}.prop('checked', true);
+                radioToCheck_{{ $index }}.closest('.btn-group').find('.btn').removeClass('active');
+                radioToCheck_{{ $index }}.closest('label.btn').addClass('active');
+                if (oldCalcMethod_{{ $index }} !== 'manual') {
+                    $('input[name="items[{{ $index }}][price]"]').prop('readonly', true);
                 } else {
-                    $hiddenMethodInput.val('');
-                    $hiddenAppliedRateInput.val('');
-                    $itemPriceInput.prop('readonly', false);
+                    $('input[name="items[{{ $index }}][price]"]').prop('readonly', false);
                 }
-                $itemPriceInput.trigger('change.quoteitem');
-            });
+            }
+        @endforeach
+    @endif
+
+    function addQuoteItemRow(item = {}, currentIndex) {
+        console.log(`Create Quote JS: addQuoteItemRow para índice ${currentIndex}`, item);
+        let costValue = item.cost ? parseFloat(item.cost).toFixed(2) : '0.00';
+        let priceValue = item.price ? parseFloat(item.price).toFixed(2) : costValue;
+        let quantityValue = item.quantity || 1;
+        let productName = item.manual_product_name || item.name || '';
+        let productUnit = item.manual_product_unit || item.unit_of_measure || 'Medida';
+        let productId = item.product_id || '';
+        let costPlusIvaChecked = item.cost_plus_iva ? 'checked' : '';
+
+        const newRowHtml = `
+            <tr class="quote-item-row">
+                <td>
+                    <input type="hidden" name="items[${currentIndex}][product_id]" value="${productId}" class="item-product-id">
+                    <input type="text" name="items[${currentIndex}][manual_product_name]" class="form-control form-control-sm item-name" value="${productName}" placeholder="Nombre del Producto" required>
+                </td>
+                <td><input type="number" name="items[${currentIndex}][quantity]" class="form-control form-control-sm item-quantity calc-trigger" value="${quantityValue}" step="any" min="0.01" required></td>
+                <td><input type="text" name="items[${currentIndex}][manual_product_unit]" class="form-control form-control-sm item-unit" value="${productUnit}" placeholder="Ej: Pza, Kg"></td>
+                <td>
+                    <input type="number" name="items[${currentIndex}][cost]" class="form-control form-control-sm item-cost calc-trigger" value="${costValue}" step="any" min="0" required>
+                </td>
+                <td>
+                    <div class="form-check text-center">
+                        <input type="checkbox" name="items[${currentIndex}][cost_plus_iva]" value="1" class="form-check-input item-cost-plus-iva calc-trigger" style="margin-top: 0.3rem; margin-left: -0.5rem;" ${costPlusIvaChecked}>
+                    </div>
+                </td>
+                <td>
+                    <input type="hidden" name="items[${currentIndex}][price_calculation_method]" class="item-price-calc-method" value="manual">
+                    <input type="hidden" name="items[${currentIndex}][applied_rate_value]" class="item-applied-rate" value="">
+                    <div class="btn-group btn-group-toggle" data-toggle="buttons">
+                        <label class="btn btn-xs btn-outline-info calc-price-btn" data-method="promedio" title="Usar Tasa Promedio">
+                            <input type="radio" name="items[${currentIndex}][calc_option]" value="promedio" class="calc-trigger"> <span class="d-none d-sm-inline">Prom.</span>
+                        </label>
+                        <label class="btn btn-xs btn-outline-warning calc-price-btn" data-method="bcv" title="Usar Tasa BCV">
+                            <input type="radio" name="items[${currentIndex}][calc_option]" value="bcv" class="calc-trigger"> <span class="d-none d-sm-inline">BCV</span>
+                        </label>
+                        <label class="btn btn-xs btn-outline-secondary calc-price-btn active" data-method="manual" title="Precio Manual">
+                            <input type="radio" name="items[${currentIndex}][calc_option]" value="manual" class="calc-trigger" checked> <i class="fas fa-edit"></i>
+                        </label>
+                    </div>
+                </td>
+                <td><input type="number" name="items[${currentIndex}][price]" class="form-control form-control-sm item-price calc-trigger" value="${priceValue}" step="any" min="0" required></td>
+                <td class="text-right"><span class="item-line-total">0.00</span></td>
+                <td><button type="button" class="btn btn-xs btn-danger removeItemButton"><i class="fas fa-trash"></i></button></td>
+            </tr>
+        `;
+        $('#quoteItemsTbody').append(newRowHtml);
+        $('[data-toggle="tooltip"]').tooltip();
+        calculateAll();
+    }
+
+    $('#addManualItemButton').off('click').on('click', function() { addQuoteItemRow({}, globalItemIndex); globalItemIndex++; });
+    $('#searchProductButton').off('click').on('click', function() { if ($.fn.modal) $('#searchProductModal').modal('show'); });
+    $('#performProductSearch').off('click').on('click', function() {
+        let searchTerm = $('#productSearchInput').val(); if (searchTerm.length < 2) { $('#productSearchResults').html('<a href="#" class="list-group-item list-group-item-action disabled">Escriba al menos 2 caracteres.</a>'); return; }
+        $('#productSearchResults').html('<a href="#" class="list-group-item list-group-item-action disabled">Buscando...</a>');
+        $.ajax({ url: "{{ route('quotes.searchProducts') }}", data: { term: searchTerm, _token: "{{ csrf_token() }}" }, dataType: 'json',
+            success: function(products) {
+                let html = ''; if (products && products.length > 0) { products.forEach(p => { let productJson = JSON.stringify(p).replace(/'/g, "&apos;"); html += `<a href="#" class="list-group-item list-group-item-action select-product" data-product='${productJson}'>${p.name || 'Sin Nombre'} (${p.code || 'S/C'}) - Costo: ${parseFloat(p.cost || 0).toFixed(2)}</a>`; });
+                } else { html = '<a href="#" class="list-group-item list-group-item-action disabled">No se encontraron productos.</a>'; } $('#productSearchResults').html(html);
+            },
+            error: function(jqXHR) { console.error("Error en AJAX searchProducts:", jqXHR.responseText); $('#productSearchResults').html('<a href="#" class="list-group-item list-group-item-action disabled text-danger">Error al buscar.</a>');}
+        });
+    });
+    $(document).on('click', '.select-product', function(e) {
+        e.preventDefault(); let productData = $(this).data('product'); if (typeof productData === 'string') productData = JSON.parse(productData.replace(/&apos;/g, "'"));
+        addQuoteItemRow({ product_id: productData.id, name: productData.name, unit_of_measure: productData.unit_of_measure, cost: productData.cost, price: productData.cost }, globalItemIndex); globalItemIndex++;
+        if ($.fn.modal) $('#searchProductModal').modal('hide'); $('#productSearchInput').val(''); $('#productSearchResults').html('');
+    });
+    $(document).on('click', '.removeItemButton', function() { $(this).closest('tr').remove(); calculateAll(); });
+    function formatCurrency(num) { if (isNaN(parseFloat(num))) return '0,00'; return parseFloat(num).toFixed(2).replace('.', ',').replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1.');}
+    
+    $(document).on('input change', '.calc-trigger, .rate-input, #profit_percentage, .item-cost-plus-iva, #discount_type, #discount_value, #taxPercentageInput', calculateAll);
+    $(document).on('click', '.calc-price-btn', function() {
+        $(this).addClass('active').siblings().removeClass('active');
+        $(this).find('input[type="radio"]').prop('checked', true);
+        let row = $(this).closest('tr');
+        let priceInput = row.find('.item-price');
+        if ($(this).data('method') === 'manual') {
+            priceInput.prop('readonly', false);
+        } else {
+            priceInput.prop('readonly', true);
         }
+        calculateAll();
+    });
+    
+    // FUNCIÓN calculateAll() CON LÓGICA COMPLETA SEGÚN EJEMPLOS
+    function calculateAll() {
+        console.log("calculateAll() INICIADO con nueva lógica.");
+        let subtotalGeneral = 0;
         
-        // Aplicar listeners a filas existentes al cargar la página (para old data)
-        $('#quoteItemsTbody tr').each(function() {
-            attachItemEventListenersToRow($(this));
+        const globalBcvRate = parseFloat($('#exchange_rate_bcv').val().replace(',', '.')) || 0;
+        const globalPromedioRate = parseFloat($('#exchange_rate_promedio').val().replace(',', '.')) || 0;
+        const globalProfitPercentage = parseFloat($('#profit_percentage').val().replace(',', '.')) || 0;
+        const systemIVARateForCost = 16.0; 
+
+        $('#quoteItemsTbody tr.quote-item-row').each(function(rowIndex) {
+            let row = $(this);
+            let quantity = parseFloat(row.find('.item-quantity').val().replace(',', '.')) || 0;
+            let itemCostBase = parseFloat(row.find('.item-cost').val().replace(',', '.')) || 0;
+            let priceInput = row.find('.item-price');
+            
+            let costoAjustadoPorIVA = itemCostBase;
+            const costPlusIvaCheckbox = row.find('.item-cost-plus-iva');
+            if (costPlusIvaCheckbox.is(':checked')) {
+                costoAjustadoPorIVA = itemCostBase * (1 + (systemIVARateForCost / 100));
+            }
+
+            let precioIntermedio;
+            let calcMethod = row.find('input[name*="[calc_option]"]:checked').val() || 'manual';
+            row.find('.item-price-calc-method').val(calcMethod);
+            row.find('.item-applied-rate').val('');
+
+            if (calcMethod === 'manual') {
+                priceInput.prop('readonly', false);
+                // En modo manual, el precio base para la utilidad es el costoAjustadoPorIVA,
+                // pero si el usuario ya escribió algo en precio, se usa eso.
+                let manualPrice = parseFloat(priceInput.val().replace(',', '.')) || 0;
+                precioIntermedio = manualPrice > 0 ? manualPrice : costoAjustadoPorIVA;
+            } else {
+                priceInput.prop('readonly', true);
+                if (calcMethod === 'promedio') {
+                    if (globalPromedioRate > 0 && globalBcvRate > 0) {
+                        precioIntermedio = (costoAjustadoPorIVA * globalPromedioRate) / globalBcvRate;
+                        row.find('.item-applied-rate').val((globalPromedioRate / globalBcvRate).toFixed(4));
+                    } else {
+                        precioIntermedio = costoAjustadoPorIVA; 
+                        row.find('.calc-price-btn[data-method="manual"]').addClass('active').siblings().removeClass('active').find('input').prop('checked',true);
+                        priceInput.prop('readonly', false); // Permitir edición manual si falla
+                        row.find('.item-price-calc-method').val('manual');
+                         console.warn(`Ítem ${rowIndex + 1}: Cálculo Promedio no posible, tasas no válidas. Cambiado a manual.`);
+                    }
+                } else if (calcMethod === 'bcv') {
+                    // Para BCV, el precio intermedio es simplemente el costoAjustadoPorIVA (según tu lógica de ejemplo 2 y 4)
+                    precioIntermedio = costoAjustadoPorIVA; 
+                    row.find('.item-applied-rate').val(globalBcvRate > 0 ? globalBcvRate.toFixed(4) : ''); // Guardar la tasa BCV solo como referencia
+                } else { 
+                     precioIntermedio = costoAjustadoPorIVA;
+                     priceInput.prop('readonly', false);
+                     row.find('.calc-price-btn[data-method="manual"]').addClass('active').siblings().removeClass('active').find('input').prop('checked',true);
+                     row.find('.item-price-calc-method').val('manual');
+                }
+            }
+
+            // Aplicar Porcentaje de Utilidad Global
+            let precioUnitarioFinal = precioIntermedio;
+            if (globalProfitPercentage > 0) {
+                precioUnitarioFinal = precioIntermedio * (1 + (globalProfitPercentage / 100));
+            }
+            
+            priceInput.val(precioUnitarioFinal.toFixed(2));
+
+            let lineTotal = quantity * precioUnitarioFinal;
+            row.find('.item-line-total').text(formatCurrency(lineTotal));
+            subtotalGeneral += lineTotal;
         });
 
-
-        function calculateAll() {
-            let subtotal = 0;
-            $('#quoteItemsTbody tr').each(function() {
-                let quantity = parseFloat($(this).find('.item-quantity').val()) || 0;
-                let price = parseFloat($(this).find('.item-price').val()) || 0;
-                let lineTotal = quantity * price;
-                $(this).find('.item-line-total').text(formatCurrency(lineTotal));
-                subtotal += lineTotal;
-            });
-
-            $('#quoteSubtotalText').text(formatCurrency(subtotal));
-
-            let discountValue = parseFloat($('#discount_value').val()) || 0;
-            let discountType = $('#discount_type').val();
-            let discountAmount = (discountType === 'percentage' && discountValue > 0) ? (subtotal * discountValue) / 100 : discountValue;
-            discountAmount = Math.min(discountAmount, subtotal);
-
-            $('#discountAmountText').text(formatCurrency(discountAmount));
-
-            let taxableBase = subtotal - discountAmount;
-            $('#taxableBaseText').text(formatCurrency(taxableBase));
-
-            let current_iva_rate = parseFloat($('#taxPercentageInput').val()) || 0;
-            let taxAmount = (taxableBase * current_iva_rate) / 100;
-            $('#taxAmountText').text(formatCurrency(taxAmount));
-
-            let total = taxableBase + taxAmount;
-            $('#quoteTotalText').text(formatCurrency(total));
-        }
-
-        $('#discount_value, #discount_type, #taxPercentageInput').on('input change', calculateAll);
-        
-        // Llamada inicial para cálculos
+        $('#quoteSubtotalText').text(formatCurrency(subtotalGeneral));
+        let discountValue = parseFloat($('#discount_value').val().replace(',', '.')) || 0;
+        let discountType = $('#discount_type').val();
+        let discountAmount = 0;
+        if (discountType === 'percentage' && discountValue > 0) { discountAmount = (subtotalGeneral * discountValue) / 100; } 
+        else if (discountType === 'fixed') { discountAmount = discountValue; }
+        discountAmount = Math.max(0, Math.min(discountAmount, subtotalGeneral));
+        $('#discountAmountText').text(formatCurrency(discountAmount));
+        let taxableBase = subtotalGeneral - discountAmount;
+        $('#taxableBaseText').text(formatCurrency(taxableBase));
+        let globalQuoteIVARate = parseFloat($('#taxPercentageInput').val().replace(',', '.')) || 0;
+        let taxAmount = (taxableBase * globalQuoteIVARate) / 100;
+        $('#taxAmountText').text(formatCurrency(taxAmount));
+        let totalFinal = taxableBase + taxAmount;
+        $('#quoteTotalText').text(formatCurrency(totalFinal));
+    }
+    
+    if ($('#quoteItemsTbody tr.quote-item-row').length > 0) {
         calculateAll();
+    }
 
-        if ($('#quoteItemsTbody tr').length === 0 && !@json(old('items'))) {
-            $('#addManualItemButton').trigger('click');
-        }
+    $('#autoSaveTriggerButtonCreate').on('click', function() {
+        alert("Autoguardado para nuevas cotizaciones: Para que funcione, primero guarde la cotización como borrador.");
     });
-    </script>
-@stop
+});
+</script>
+@endpush

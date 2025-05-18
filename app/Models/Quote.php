@@ -4,10 +4,9 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo; // Para relaciones "pertenece a"
-use Illuminate\Database\Eloquent\Relations\HasMany;   // Para relaciones "tiene muchos"
-// Asegúrate que Carbon está importado si no lo está globalmente.
-// use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Carbon\Carbon;
 
 class Quote extends Model
 {
@@ -28,25 +27,19 @@ class Quote extends Model
         'total',
         'terms_and_conditions',
         'notes_to_client',
-        'internal_notes', // Añadido según tu controlador
+        'internal_notes',
         'status',
         'base_currency',
         'exchange_rate_bcv',
         'exchange_rate_promedio',
+        'profit_percentage',
         'auto_save_data',
-        // 'version',
-        // 'parent_quote_id',
     ];
 
-    /**
-     * Los atributos que deben ser convertidos a tipos nativos.
-     *
-     * @var array
-     */
     protected $casts = [
-        'issue_date' => 'date', // Convierte a objeto Carbon/Date
-        'expiry_date' => 'date', // Convierte a objeto Carbon/Date
-        'auto_save_data' => 'array', // Convierte el JSON a array PHP y viceversa
+        'issue_date' => 'date',
+        'expiry_date' => 'date',
+        'auto_save_data' => 'array',
         'subtotal' => 'decimal:2',
         'discount_value' => 'decimal:2',
         'discount_amount' => 'decimal:2',
@@ -55,82 +48,76 @@ class Quote extends Model
         'total' => 'decimal:2',
         'exchange_rate_bcv' => 'decimal:4',
         'exchange_rate_promedio' => 'decimal:4',
+        'profit_percentage' => 'decimal:2',
     ];
 
-    /**
-     * Obtener el cliente al que pertenece la cotización.
-     * Una cotización pertenece a un cliente.
-     */
+    public const STATUS_BORRADOR = 'Borrador';
+    public const STATUS_ENVIADA = 'Enviada';
+    public const STATUS_ACEPTADA = 'Aceptada';
+    public const STATUS_RECHAZADA = 'Rechazada';
+    public const STATUS_EXPIRADA = 'Expirada';
+    public const STATUS_CANCELADA = 'Cancelada';
+
+    public static function getAllStatuses(): array
+    {
+        return [
+            self::STATUS_BORRADOR,
+            self::STATUS_ENVIADA,
+            self::STATUS_ACEPTADA,
+            self::STATUS_RECHAZADA,
+            self::STATUS_EXPIRADA,
+            self::STATUS_CANCELADA,
+        ];
+    }
+    
+    public static function getStatusMap(): array
+    {
+        return [
+            self::STATUS_BORRADOR => 'Borrador',
+            self::STATUS_ENVIADA => 'Enviada',
+            self::STATUS_ACEPTADA => 'Aceptada',
+            self::STATUS_RECHAZADA => 'Rechazada',
+            self::STATUS_EXPIRADA => 'Expirada',
+            self::STATUS_CANCELADA => 'Cancelada',
+        ];
+    }
+
     public function client(): BelongsTo
     {
         return $this->belongsTo(Client::class);
     }
 
-    /**
-     * Obtener el usuario (vendedor) que creó la cotización.
-     * Una cotización pertenece a un usuario.
-     */
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
     }
 
-    /**
-     * Obtener todos los ítems de la cotización.
-     * Una cotización tiene muchos ítems.
-     */
     public function items(): HasMany
     {
         return $this->hasMany(QuoteItem::class);
     }
 
-    /**
-     * Obtener el historial de cambios de la cotización.
-     * Una cotización puede tener muchos registros de historial.
-     */
     public function history(): HasMany
     {
-        // Ordenar por el más reciente por defecto si es útil
         return $this->hasMany(QuoteHistory::class)->orderBy('created_at', 'desc');
     }
 
-    // --- INICIO ACCESORS PARA ESTADO ---
-    /**
-     * Obtener el texto legible del estado de la cotización.
-     *
-     * @return string
-     */
     public function getStatusTextAttribute(): string
     {
-        $statuses = [
-            'Borrador' => 'Borrador',
-            'Enviada' => 'Enviada',
-            'Aceptada' => 'Aceptada',
-            'Rechazada' => 'Rechazada',
-            'Expirada' => 'Expirada',
-            'Cancelada' => 'Cancelada',
-            // Puedes añadir otros estados si los manejas
-        ];
-        return $statuses[$this->status] ?? ucfirst($this->status);
+        $statusMap = self::getStatusMap();
+        return $statusMap[$this->status] ?? $this->status;
     }
 
-    /**
-     * Obtener la clase CSS para el badge del estado.
-     *
-     * @return string
-     */
     public function getStatusClassAttribute(): string
     {
-        $baseClass = 'badge ';
-        $statusClasses = [
-            'Borrador' => 'badge-secondary',
-            'Enviada' => 'badge-info',
-            'Aceptada' => 'badge-success',
-            'Rechazada' => 'badge-danger',
-            'Expirada' => 'badge-warning',
-            'Cancelada' => 'badge-dark', // o badge-danger también
-        ];
-        return $baseClass . ($statusClasses[$this->status] ?? 'badge-light');
+        return match ($this->status) {
+            self::STATUS_BORRADOR => 'secondary',
+            self::STATUS_ENVIADA => 'info',
+            self::STATUS_ACEPTADA => 'success',
+            self::STATUS_RECHAZADA => 'danger',
+            self::STATUS_EXPIRADA => 'warning',
+            self::STATUS_CANCELADA => 'dark',
+            default => 'light',
+        };
     }
-    // --- FIN ACCESORS PARA ESTADO ---
 }

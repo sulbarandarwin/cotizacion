@@ -6,8 +6,7 @@ use Illuminate\Support\Facades\Route;
 // Importaciones de Controladores de Administración
 use App\Http\Controllers\Admin\ProductController;
 use App\Http\Controllers\Admin\ClientController;
-use App\Http\Controllers\Admin\QuoteController; // Asegúrate que esta línea NO esté comentada
-// use App\Http\Controllers\Admin\SystemSettingController;
+use App\Http\Controllers\Admin\QuoteController;
 
 /*
 |--------------------------------------------------------------------------
@@ -31,7 +30,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
-    // --- INICIO DE RUTAS DE ADMINISTRACIÓN ---
+    // --- INICIO DE RUTAS DE ADMINISTRACIÓN (Opción B: sin prefijo 'admin.' en nombres/URLs) ---
 
     // Gestión de Productos
     Route::resource('products', ProductController::class);
@@ -40,16 +39,17 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::resource('clients', ClientController::class);
 
     // Gestión de Cotizaciones
-    Route::resource('quotes', QuoteController::class);
+    Route::resource('quotes', QuoteController::class); // Define quotes.index, quotes.create, etc.
 
-    Route::resource('quotes', QuoteController::class);
-    Route::get('quotes/{quote}/download-pdf', [QuoteController::class, 'downloadPDF'])->name('quotes.downloadPdf'); // NUEVA RUTA
+    // Rutas adicionales para Cotizaciones
+    Route::get('quotes/{quote}/download-pdf', [QuoteController::class, 'downloadPDF'])->name('quotes.downloadPdf');
     Route::post('quotes/{quote}/duplicate', [QuoteController::class, 'duplicate'])->name('quotes.duplicate');
+    Route::post('quotes/autosave/{quote?}', [QuoteController::class, 'autosave'])->name('quotes.autosave');
+    Route::post('quotes/{quote}/change-status', [QuoteController::class, 'changeStatus'])->name('quotes.changeStatus');
 
-    Route::post('quotes/{quote}/autosave', [QuoteController::class, 'autosave'])->name('quotes.autosave');
-
-    // Ruta para buscar productos (COMENTADA TEMPORALMENTE si no la usamos ahora)
-    // Route::get('/quotes/search-products', [App\Http\Controllers\Admin\QuoteController::class, 'searchProducts'])->name('quotes.searchProducts');
+    // Ruta para buscar productos (asegúrate que esté activa y correcta)
+    // Usar una URL un poco distinta para evitar conflictos con la ruta resource de show: quotes/{id}
+    Route::get('search-products-for-quotes', [QuoteController::class, 'searchProducts'])->name('quotes.searchProducts');
 
     // --- FIN DE RUTAS DE ADMINISTRACIÓN ---
 
