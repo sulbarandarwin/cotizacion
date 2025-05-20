@@ -278,14 +278,13 @@ return [
 
         ['header' => 'CONFIGURACIÓN'],
 
-        /* // Menú Ajustes del Sistema Comentado Temporalmente
         [
-            'text' => 'Ajustes del Sistema',
-            'route'  => 'system.settings.edit', // Deberás crear esta ruta
+            'text' => 'Configuración del Sistema',
+            'route'  => 'admin.settings.index', // Usando la ruta nombrada
             'icon' => 'fas fa-fw fa-cogs',
-            // 'can' => 'gestionar_configuracion',
+            'can'  => 'manage_settings', // Asegúrate que este permiso exista y esté asignado al rol Administrador
         ],
-        */
+        
         /* // Menú Gestión de Usuarios Comentado Temporalmente
         [
             'text' => 'Gestión de Usuarios',

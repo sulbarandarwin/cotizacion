@@ -6,7 +6,9 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Carbon\Carbon;
+// Asegúrate que Carbon esté importado si lo usas para castear fechas directamente aquí,
+// aunque usualmente no es necesario para $casts.
+// use Carbon\Carbon;
 
 class Quote extends Model
 {
@@ -15,7 +17,7 @@ class Quote extends Model
     protected $fillable = [
         'quote_number',
         'client_id',
-        'user_id',
+        'user_id', // Asegúrate que esto no sea null al crear/actualizar si la BD no lo permite
         'issue_date',
         'expiry_date',
         'subtotal',
@@ -27,12 +29,12 @@ class Quote extends Model
         'total',
         'terms_and_conditions',
         'notes_to_client',
-        'internal_notes',
+        'internal_notes', // Añadido según tu estructura inicial
         'status',
         'base_currency',
         'exchange_rate_bcv',
         'exchange_rate_promedio',
-        'profit_percentage',
+        'profit_percentage', // De tu migración
         'auto_save_data',
     ];
 
@@ -43,10 +45,10 @@ class Quote extends Model
         'subtotal' => 'decimal:2',
         'discount_value' => 'decimal:2',
         'discount_amount' => 'decimal:2',
-        'tax_percentage' => 'decimal:2',
+        'tax_percentage' => 'decimal:2', // Porcentaje de IVA general
         'tax_amount' => 'decimal:2',
         'total' => 'decimal:2',
-        'exchange_rate_bcv' => 'decimal:4',
+        'exchange_rate_bcv' => 'decimal:4', // Hasta 4 decimales para tasas
         'exchange_rate_promedio' => 'decimal:4',
         'profit_percentage' => 'decimal:2',
     ];
@@ -79,6 +81,7 @@ class Quote extends Model
             self::STATUS_RECHAZADA => 'Rechazada',
             self::STATUS_EXPIRADA => 'Expirada',
             self::STATUS_CANCELADA => 'Cancelada',
+            // Podrías añadir más si los necesitas
         ];
     }
 
@@ -87,7 +90,7 @@ class Quote extends Model
         return $this->belongsTo(Client::class);
     }
 
-    public function user(): BelongsTo
+    public function user(): BelongsTo // El vendedor que creó/modificó la cotización
     {
         return $this->belongsTo(User::class);
     }
@@ -102,12 +105,13 @@ class Quote extends Model
         return $this->hasMany(QuoteHistory::class)->orderBy('created_at', 'desc');
     }
 
+    // Accesor para obtener el texto legible del estado
     public function getStatusTextAttribute(): string
     {
-        $statusMap = self::getStatusMap();
-        return $statusMap[$this->status] ?? $this->status;
+        return self::getStatusMap()[$this->status] ?? $this->status;
     }
 
+    // Accesor para obtener la clase de badge Bootstrap para el estado
     public function getStatusClassAttribute(): string
     {
         return match ($this->status) {

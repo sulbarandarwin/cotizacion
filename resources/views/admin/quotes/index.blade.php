@@ -63,36 +63,41 @@
                                 <td>{{ $quote->issue_date ? $quote->issue_date->format('d/m/Y') : 'N/A' }}</td>
                                 <td class="text-right">{{ number_format($quote->total ?? 0, 2, ',', '.') }} {{ $quote->base_currency }}</td>
                                 <td>
+                                    @if ($quote->status)
                                     <span class="badge badge-{{ $quote->status_class }} p-2">{{ $quote->status_text }}</span>
+                                    @else
+                                    <span class="badge badge-light p-2">Indefinido</span>
+                                    @endif
                                 </td>
                                 <td class="text-center">
                                     <div class="btn-group" role="group" aria-label="Acciones de Cotización">
-                                        <a href="{{ route('quotes.show', $quote) }}" class="btn btn-xs btn-success" title="Ver Detalle"><i class="far fa-eye"></i></a>
+                                        {{-- Para show, edit, update, changeStatus que usan Route Model Binding con {quote} --}}
+                                        <a href="{{ route('quotes.show', ['quote' => $quote->id ?? 0]) }}" class="btn btn-xs btn-success" title="Ver Detalle"><i class="far fa-eye"></i></a>
                                         
                                         @if(Auth::user()->can('editar cotizaciones') || Auth::user()->hasRole('Administrador') || Auth::user()->hasRole('Vendedor'))
-                                            <a href="{{ route('quotes.edit', $quote) }}" class="btn btn-xs btn-info" title="Editar"><i class="fas fa-edit"></i></a>
+                                            <a href="{{ route('quotes.edit', ['quote' => $quote->id ?? 0]) }}" class="btn btn-xs btn-info" title="Editar"><i class="fas fa-edit"></i></a>
                                         @endif
 
-                                        {{-- BOTÓN DE DUPLICAR --}}
+                                        {{-- Para DUPLICATE que espera {quoteId} --}}
                                         @if(Auth::user()->can('duplicar cotizaciones') || Auth::user()->hasRole('Administrador') || Auth::user()->hasRole('Vendedor'))
-                                        <form action="{{ route('quotes.duplicate', $quote) }}" method="POST" style="display: inline-block;" onsubmit="return confirm('¿Está seguro de duplicar esta cotización #{{ $quote->quote_number }}? Se creará una nueva cotización editable.');">
+                                        <form action="{{ route('quotes.duplicate', ['quoteId' => $quote->id ?? 0]) }}" method="POST" style="display: inline-block;" onsubmit="return confirm('¿Está seguro de duplicar esta cotización #{{ $quote->quote_number }}? Se creará una nueva cotización editable.');">
                                             @csrf
                                             <button type="submit" class="btn btn-xs btn-warning" title="Duplicar Cotización">
                                                 <i class="fas fa-copy"></i>
                                             </button>
                                         </form>
                                         @endif
-                                        {{-- FIN BOTÓN DE DUPLICAR --}}
-
+                                        
                                         @if(Auth::user()->can('cambiar estado cotizaciones') || Auth::user()->hasRole('Administrador') || Auth::user()->hasRole('Vendedor'))
                                         <div class="btn-group">
                                             <button type="button" class="btn btn-xs btn-secondary dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" title="Cambiar Estado">
                                                 <i class="fas fa-exchange-alt"></i>
                                             </button>
                                             <div class="dropdown-menu dropdown-menu-right">
-                                                @foreach(App\Models\Quote::getAllStatuses() as $statusValue) {{-- Renombrado $status a $statusValue --}}
+                                                @foreach(App\Models\Quote::getAllStatuses() as $statusValue)
                                                     @if($quote->status !== $statusValue)
-                                                    <form action="{{ route('quotes.changeStatus', $quote) }}" method="POST" style="display: block;">
+                                                    {{-- Para changeStatus que usa Route Model Binding con {quote} --}}
+                                                    <form action="{{ route('quotes.changeStatus', ['quote' => $quote->id ?? 0]) }}" method="POST" style="display: block;">
                                                         @csrf
                                                         <input type="hidden" name="status" value="{{ $statusValue }}">
                                                         <button type="submit" class="dropdown-item" onclick="return confirm('¿Está seguro de cambiar el estado a \'{{ App\Models\Quote::getStatusMap()[$statusValue] ?? $statusValue }}\'?')">
@@ -107,8 +112,9 @@
                                         </div>
                                         @endif
                                         
+                                        {{-- Para DESTROY que espera {quoteId} --}}
                                         @if(Auth::user()->hasRole('Administrador'))
-                                        <form action="{{ route('quotes.destroy', $quote) }}" method="POST" style="display: inline-block;" onsubmit="return confirm('¿Está seguro de que desea eliminar esta cotización #{{ $quote->quote_number }}? Esta acción no se puede deshacer.');">
+                                        <form action="{{ route('quotes.destroy', ['quoteId' => $quote->id ?? 0]) }}" method="POST" style="display: inline-block;" onsubmit="return confirm('¿Está seguro de que desea eliminar esta cotización #{{ $quote->quote_number }}? Esta acción no se puede deshacer.');">
                                             @csrf
                                             @method('DELETE')
                                             <button type="submit" class="btn btn-xs btn-danger" title="Eliminar"><i class="fas fa-trash"></i></button>

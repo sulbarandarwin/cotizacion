@@ -1,106 +1,203 @@
 <?php
 
-namespace App\Http\Controllers\Admin; // Importante el namespace Admin
+namespace App\Http\Controllers\Admin;
 
-use App\Http\Controllers\Controller; // Controlador base de Laravel
-use App\Models\Product;             // Nuestro modelo Product
-use Illuminate\Http\Request;        // Para manejar las solicitudes HTTP
+use App\Http\Controllers\Controller;
+use App\Models\Product;
+use App\Models\Category;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Log;
+use Maatwebsite\Excel\Facades\Excel;
+use App\Exports\ProductsExport;
+use App\Imports\ProductsImport; // <--- IMPORTACIÓN
+use Illuminate\Support\Facades\Auth;
 
 class ProductController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
-    public function index()
+    public function index(Request $request)
     {
-        // Antes de mostrar, verificar permisos si es necesario
-        // auth()->user()->can('ver_productos'); // Ejemplo con Spatie
-
-        $products = Product::latest()->paginate(10); // Obtener los productos, los más nuevos primero, paginados
-        return view('admin.products.index', compact('products')); // Pasamos los productos a la vista
+        $products = Product::with('category')->latest()->paginate(10);
+        return view('admin.products.index', compact('products'));
     }
 
-    /**
-     * Show the form for creating a new resource.
-     */
     public function create()
     {
-        // auth()->user()->can('crear_productos');
-        return view('admin.products.create');
+        $categories = Category::orderBy('name')->pluck('name', 'id');
+        return view('admin.products.create', compact('categories'));
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
     public function store(Request $request)
     {
-        // auth()->user()->can('crear_productos');
-
-        // Validación (la añadiremos en detalle después)
-        $request->validate([
-            'code' => 'required|string|max:255|unique:products,code',
+        $validatedData = $request->validate([
             'name' => 'required|string|max:255',
-            'unit_of_measure' => 'required|string|max:255',
+            'code' => 'required|string|max:50|unique:products,code',
+            'description' => 'nullable|string',
             'cost' => 'required|numeric|min:0',
+            'unit_of_measure' => 'nullable|string|max:50',
+            'category_id' => 'nullable|exists:categories,id',
+            'tax_type' => 'required|string|in:Gravado,Exento,No Sujeto',
+            'image_path_file' => 'nullable|image|mimes:jpeg,png,jpg,gif,svg|max:2048'
         ]);
 
-        Product::create($request->all()); // Crea el producto con los datos validados
+        if ($request->hasFile('image_path_file')) {
+            $path = $request->file('image_path_file')->store('products', 'public');
+            $validatedData['image_path'] = $path;
+        }
 
-        return redirect()->route('products.index')
-                         ->with('success', 'Producto creado exitosamente.'); // Redirige con mensaje de éxito
+        Product::create($validatedData);
+        return redirect()->route('products.index')->with('success', 'Producto creado exitosamente.');
     }
 
-    /**
-     * Display the specified resource.
-     * Para este CRUD básico, show() puede ser opcional si la lista 'index' ya muestra suficiente.
-     * O puedes tener una vista detallada.
-     */
     public function show(Product $product)
     {
-        // auth()->user()->can('ver_productos');
-        // return view('admin.products.show', compact('product')); // Si tienes una vista show.blade.php
-        return redirect()->route('products.index'); // Por ahora, redirigimos al index
+        if (!$product || !$product->exists) {
+             return redirect()->route('products.index')->with('error', 'Producto no encontrado.');
+        }
+        $categories = Category::orderBy('name')->pluck('name', 'id');
+        return view('admin.products.edit', compact('product', 'categories')); 
     }
 
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(Product $product) // Laravel inyecta automáticamente el Product por su ID
+    public function edit(Product $product)
     {
-        // auth()->user()->can('editar_productos');
-        return view('admin.products.edit', compact('product')); // Pasamos el producto a editar a la vista
+        if (!$product || !$product->exists) {
+             return redirect()->route('products.index')->with('error', 'Producto no encontrado para editar.');
+        }
+        $categories = Category::orderBy('name')->pluck('name', 'id');
+        return view('admin.products.edit', compact('product', 'categories'));
     }
 
-    /**
-     * Update the specified resource in storage.
-     */
     public function update(Request $request, Product $product)
     {
-        // auth()->user()->can('editar_productos');
-
-        $request->validate([
-            'code' => 'required|string|max:255|unique:products,code,' . $product->id, // Ignorar el código del producto actual al validar unicidad
+        if (!$product || !$product->exists) {
+             return redirect()->route('products.index')->with('error', 'Producto no encontrado para actualizar.');
+        }
+        $validatedData = $request->validate([
             'name' => 'required|string|max:255',
-            'unit_of_measure' => 'required|string|max:255',
+            'code' => 'required|string|max:50|unique:products,code,' . $product->id,
+            'description' => 'nullable|string',
             'cost' => 'required|numeric|min:0',
+            'unit_of_measure' => 'nullable|string|max:50',
+            'category_id' => 'nullable|exists:categories,id',
+            'tax_type' => 'required|string|in:Gravado,Exento,No Sujeto',
+            'image_path_file' => 'nullable|image|mimes:jpeg,png,jpg,gif,svg|max:2048'
         ]);
 
-        $product->update($request->all()); // Actualiza el producto
+        if ($request->hasFile('image_path_file')) {
+            if ($product->image_path && Storage::disk('public')->exists($product->image_path)) {
+                Storage::disk('public')->delete($product->image_path);
+            }
+            $path = $request->file('image_path_file')->store('products', 'public');
+            $validatedData['image_path'] = $path;
+        }
 
-        return redirect()->route('products.index')
-                         ->with('success', 'Producto actualizado exitosamente.');
+        $product->update($validatedData);
+        return redirect()->route('products.index')->with('success', 'Producto actualizado exitosamente.');
     }
 
-    /**
-     * Remove the specified resource from storage.
-     */
     public function destroy(Product $product)
     {
-        // auth()->user()->can('eliminar_productos');
+         if (!$product || !$product->exists) {
+             return redirect()->route('products.index')->with('error', 'Producto no encontrado para eliminar.');
+        }
+        try {
+            if ($product->quoteItems()->exists()) {
+                return redirect()->route('products.index')->with('error', 'No se pudo eliminar el producto porque está siendo utilizado en una o más cotizaciones.');
+            }
 
-        $product->delete(); // Elimina el producto
+            if ($product->image_path && Storage::disk('public')->exists($product->image_path)) {
+                Storage::disk('public')->delete($product->image_path);
+            }
+            $product->delete();
+            return redirect()->route('products.index')->with('success', 'Producto eliminado exitosamente.');
+        } catch (\Illuminate\Database\QueryException $e) {
+            Log::error("Error al eliminar producto ID {$product->id}: " . $e->getMessage());
+            $errorMessage = 'No se pudo eliminar el producto.';
+            if (str_contains($e->getMessage(), '1451')) { 
+                $errorMessage = 'No se pudo eliminar el producto porque está siendo utilizado en cotizaciones u otras partes del sistema.';
+            }
+            return redirect()->route('products.index')->with('error', $errorMessage);
+        } catch (\Exception $e) {
+            Log::error("Error general al eliminar producto ID {$product->id}: " . $e->getMessage());
+            return redirect()->route('products.index')->with('error', 'Ocurrió un error inesperado al intentar eliminar el producto.');
+        }
+    }
 
-        return redirect()->route('products.index')
-                         ->with('success', 'Producto eliminado exitosamente.');
+    public function exportExcel()
+    {
+        // Opcional: Verificar permiso
+        // if (!Auth::user() || !Auth::user()->can('exportar productos')) {
+        //     abort(403, 'No tiene permisos para exportar productos.');
+        // }
+        return Excel::download(new ProductsExport, 'productos-' . now()->format('Y-m-d-His') . '.xlsx');
+    }
+
+    public function exportCsv()
+    {
+        // Opcional: Verificar permiso
+        // if (!Auth::user() || !Auth::user()->can('exportar productos')) {
+        //     abort(403, 'No tiene permisos para exportar productos.');
+        // }
+        return Excel::download(new ProductsExport, 'productos-' . now()->format('Y-m-d-His') . '.csv', \Maatwebsite\Excel\Excel::CSV);
+    }
+
+    // --- MÉTODOS PARA IMPORTACIÓN ---
+    public function showImportForm()
+    {
+        // Opcional: Verificar permiso
+        // if (!Auth::user() || !Auth::user()->can('importar productos')) {
+        //     abort(403, 'No tiene permisos para importar productos.');
+        // }
+        return view('admin.products.import');
+    }
+
+    public function importProducts(Request $request)
+    {
+        // Opcional: Verificar permiso
+        // if (!Auth::user() || !Auth::user()->can('importar productos')) {
+        //     abort(403, 'No tiene permisos para importar productos.');
+        // }
+
+        $request->validate([
+            'import_file' => 'required|file|mimes:xlsx,xls,csv|max:10240', // Max 10MB
+        ]);
+
+        $import = new ProductsImport();
+        
+        try {
+            Excel::import($import, $request->file('import_file'));
+            
+            $importedCount = $import->getImportedCount();
+            $updatedCount = $import->getUpdatedCount();
+            $skippedCount = $import->getSkippedCount();
+            $processedRows = $import->getProcessedRows();
+            $errors = $import->getErrors();
+
+            $message = "Procesadas {$processedRows} filas. ";
+            $message .= "Productos nuevos importados: {$importedCount}. ";
+            $message .= "Productos actualizados: {$updatedCount}. ";
+            
+            if ($skippedCount > 0) {
+                $message .= "Filas omitidas/con error: {$skippedCount}.";
+                Log::warning("Errores durante la importación de productos:", $errors);
+                return redirect()->route('products.import.form')
+                                 ->with('warning', $message) // Cambiado a warning si hay skips
+                                 ->with('import_detailed_errors', $errors); 
+            }
+
+            return redirect()->route('products.index')->with('success', $message);
+
+        } catch (\Maatwebsite\Excel\Validators\ValidationException $e) {
+             $failures = $e->failures();
+             $errorMessages = [];
+             foreach ($failures as $failure) {
+                 $errorMessages[] = 'Fila ' . $failure->row() . ': ' . implode(', ', $failure->errors()) . ' (Valor: ' . ($failure->values()[$failure->attribute()] ?? 'N/A') . ')';
+             }
+             Log::warning("Errores de validación durante la importación de productos:", $errorMessages);
+             return redirect()->route('products.import.form')->with('import_errors', $errorMessages);
+        } catch (\Exception $e) {
+            Log::error('Error general durante la importación de productos: ' . $e->getMessage(), ['trace' => $e->getTraceAsString()]);
+            return redirect()->route('products.import.form')->with('error', 'Error general durante la importación: ' . $e->getMessage());
+        }
     }
 }

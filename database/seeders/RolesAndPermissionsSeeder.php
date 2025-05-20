@@ -2,105 +2,81 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\Models\Permission;
+use Spatie\Permission\PermissionRegistrar;
 
 class RolesAndPermissionsSeeder extends Seeder
 {
-    /**
-     * Run the database seeds.
-     */
     public function run(): void
     {
-        // Reset cached roles and permissions
-        app()[\Spatie\Permission\PermissionRegistrar::class]->forgetCachedPermissions();
+        app()[PermissionRegistrar::class]->forgetCachedPermissions();
 
-        // Crear Permisos
         // Permisos para Cotizaciones
-        Permission::create(['name' => 'crear cotizaciones']);
-        Permission::create(['name' => 'ver cotizaciones propias']); // Para vendedores
-        Permission::create(['name' => 'ver todas las cotizaciones']); // Para admin
-        Permission::create(['name' => 'editar cotizaciones']);
-        Permission::create(['name' => 'eliminar cotizaciones']); // Solo Admin
-        Permission::create(['name' => 'cambiar estado cotizaciones']);
-        Permission::create(['name' => 'duplicar cotizaciones']);
+        Permission::updateOrCreate(['name' => 'crear cotizaciones', 'guard_name' => 'web']);
+        Permission::updateOrCreate(['name' => 'ver cotizaciones propias', 'guard_name' => 'web']);
+        Permission::updateOrCreate(['name' => 'ver todas las cotizaciones', 'guard_name' => 'web']);
+        Permission::updateOrCreate(['name' => 'editar cotizaciones', 'guard_name' => 'web']);
+        Permission::updateOrCreate(['name' => 'eliminar cotizaciones', 'guard_name' => 'web']);
+        Permission::updateOrCreate(['name' => 'cambiar estado cotizaciones', 'guard_name' => 'web']);
+        Permission::updateOrCreate(['name' => 'duplicar cotizaciones', 'guard_name' => 'web']);
 
         // Permisos para Productos
-        Permission::create(['name' => 'ver productos']);
-        Permission::create(['name' => 'crear productos']);
-        Permission::create(['name' => 'editar productos']);
-        Permission::create(['name' => 'eliminar productos']);
-        Permission::create(['name' => 'importar productos']);
-        Permission::create(['name' => 'exportar productos']);
+        Permission::updateOrCreate(['name' => 'ver productos', 'guard_name' => 'web']);
+        Permission::updateOrCreate(['name' => 'crear productos', 'guard_name' => 'web']);
+        Permission::updateOrCreate(['name' => 'editar productos', 'guard_name' => 'web']);
+        Permission::updateOrCreate(['name' => 'eliminar productos', 'guard_name' => 'web']);
+        Permission::updateOrCreate(['name' => 'importar productos', 'guard_name' => 'web']);
+        Permission::updateOrCreate(['name' => 'exportar productos', 'guard_name' => 'web']); // <--- ASEGURAR QUE ESTÉ
 
         // Permisos para Clientes
-        Permission::create(['name' => 'ver clientes']);
-        Permission::create(['name' => 'crear clientes']);
-        Permission::create(['name' => 'editar clientes']);
-        Permission::create(['name' => 'eliminar clientes']);
-        Permission::create(['name' => 'importar clientes']);
-        Permission::create(['name' => 'exportar clientes']);
+        Permission::updateOrCreate(['name' => 'ver clientes', 'guard_name' => 'web']);
+        Permission::updateOrCreate(['name' => 'crear clientes', 'guard_name' => 'web']);
+        Permission::updateOrCreate(['name' => 'editar clientes', 'guard_name' => 'web']);
+        Permission::updateOrCreate(['name' => 'eliminar clientes', 'guard_name' => 'web']);
+        Permission::updateOrCreate(['name' => 'importar clientes', 'guard_name' => 'web']);
+        Permission::updateOrCreate(['name' => 'exportar clientes', 'guard_name' => 'web']);
 
-        // Permisos para Usuarios (Vendedores)
-        Permission::create(['name' => 'ver usuarios']);      // Admin ve a todos
-        Permission::create(['name' => 'crear usuarios']);     // Admin crea vendedores
-        Permission::create(['name' => 'editar usuarios']);    // Admin edita vendedores
-        Permission::create(['name' => 'eliminar usuarios']);  // Admin elimina vendedores
+        // Permisos para Administración de Usuarios y Roles
+        Permission::updateOrCreate(['name' => 'ver usuarios', 'guard_name' => 'web']);
+        Permission::updateOrCreate(['name' => 'crear usuarios', 'guard_name' => 'web']);
+        Permission::updateOrCreate(['name' => 'editar usuarios', 'guard_name' => 'web']);
+        Permission::updateOrCreate(['name' => 'eliminar usuarios', 'guard_name' => 'web']);
+        Permission::updateOrCreate(['name' => 'gestionar roles y permisos', 'guard_name' => 'web']);
 
-        // Permisos para Configuración del Sistema
-        Permission::create(['name' => 'gestionar configuracion']); // Solo Admin
-        Permission::create(['name' => 'gestionar roles y permisos']); // Solo Admin (aunque este seeder lo hace)
+        // Permiso para Configuración del Sistema
+        $manageSettingsPermission = Permission::updateOrCreate(['name' => 'manage_settings', 'guard_name' => 'web']);
 
-        // Crear Roles y asignar Permisos existentes
+        // Crear Roles
+        $adminRole = Role::updateOrCreate(['name' => 'Administrador', 'guard_name' => 'web']);
+        $vendedorRole = Role::updateOrCreate(['name' => 'Vendedor', 'guard_name' => 'web']);
 
-        // Rol de Vendedor
-        $vendedorRole = Role::create(['name' => 'Vendedor']);
-        $vendedorRole->givePermissionTo([
+        // Asignar Permisos al Rol de Vendedor
+        $vendedorRole->syncPermissions([
             'crear cotizaciones',
-            'ver cotizaciones propias', // Importante: Lógica extra en controlador para esto
+            'ver cotizaciones propias',
             'editar cotizaciones',
             'cambiar estado cotizaciones',
             'duplicar cotizaciones',
             'ver productos',
-            'exportar productos', // Quizás solo ver
-            'ver clientes',
-            'crear clientes',     // Un vendedor podría crear un nuevo cliente
-            'editar clientes',    // Quizás solo los que él creó o se le asignen
-            'exportar clientes',  // Quizás solo ver
-        ]);
-
-        // Rol de Administrador
-        // Los administradores obtienen todos los permisos de forma automática o específica
-        $adminRole = Role::create(['name' => 'Administrador']);
-        // $adminRole->givePermissionTo(Permission::all()); // Opción 1: Dar todos los permisos existentes
-        // Opción 2: Ser explícito (mejor para mantenimiento si añades más permisos después)
-        $adminRole->givePermissionTo([
-            'crear cotizaciones',
-            'ver todas las cotizaciones',
-            'editar cotizaciones',
-            'eliminar cotizaciones',
-            'cambiar estado cotizaciones',
-            'duplicar cotizaciones',
-            'ver productos',
-            'crear productos',
-            'editar productos',
-            'eliminar productos',
-            'importar productos',
-            'exportar productos',
             'ver clientes',
             'crear clientes',
             'editar clientes',
-            'eliminar clientes',
-            'importar clientes',
-            'exportar clientes',
-            'ver usuarios',
-            'crear usuarios',
-            'editar usuarios',
-            'eliminar usuarios',
-            'gestionar configuracion',
-            'gestionar roles y permisos',
         ]);
+
+        // Asignar Permisos al Rol de Administrador
+        $adminPermissions = [
+            'crear cotizaciones', 'ver todas las cotizaciones', 'editar cotizaciones',
+            'eliminar cotizaciones', 'cambiar estado cotizaciones', 'duplicar cotizaciones',
+            'ver productos', 'crear productos', 'editar productos', 'eliminar productos',
+            'importar productos', 'exportar productos', // <--- ASEGURAR QUE ESTÉ
+            'ver clientes', 'crear clientes', 'editar clientes', 'eliminar clientes',
+            'importar clientes', 'exportar clientes',
+            'ver usuarios', 'crear usuarios', 'editar usuarios', 'eliminar usuarios',
+            'gestionar roles y permisos',
+            $manageSettingsPermission // o 'manage_settings' directamente si ya se creó
+        ];
+        $adminRole->syncPermissions($adminPermissions);
     }
 }
